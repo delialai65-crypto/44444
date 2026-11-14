@@ -1,0 +1,3440 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>3D 職棒巔峰對決 | Pro Baseball 3D</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,600;0,700;1,700&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #090d16;
+            font-family: 'Noto Sans TC', sans-serif;
+            color: #f8fafc;
+        }
+        #game-canvas {
+            position: fixed;
+            inset: 0;
+            width: 100vw;
+            height: 100vh;
+            display: block;
+            z-index: 0;
+        }
+        .sport-font {
+            font-family: 'Chakra Petch', 'Noto Sans TC', sans-serif;
+        }
+        .glass-panel {
+            background: linear-gradient(145deg, rgba(15, 23, 42, 0.88) 0%, rgba(30, 41, 59, 0.85) 100%);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
+        }
+        .glass-card {
+            background: rgba(15, 23, 42, 0.72);
+            border: 1px solid rgba(148, 163, 184, 0.18);
+            transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+        }
+        .glass-card:hover {
+            border-color: rgba(250, 204, 21, 0.55);
+            background: rgba(30, 41, 59, 0.85);
+        }
+        /* Custom Scrollbar for Lobby Panels */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.4);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(100, 116, 139, 0.5);
+            border-radius: 9999px;
+        }
+        /* Swing & Pitch Action Buttons */
+        .btn-swing {
+            background: linear-gradient(180deg, #ef4444 0%, #b91c1c 100%);
+            box-shadow: 0 6px 0 #7f1d1d, 0 12px 24px rgba(239, 68, 68, 0.4);
+            transition: transform 0.08s ease, box-shadow 0.08s ease;
+        }
+        .btn-swing:active, .btn-swing.pressed {
+            transform: translateY(5px);
+            box-shadow: 0 1px 0 #7f1d1d, 0 4px 10px rgba(239, 68, 68, 0.4);
+        }
+        .btn-pitch {
+            background: linear-gradient(180deg, #0ea5e9 0%, #0369a1 100%);
+            box-shadow: 0 6px 0 #0c4a6e, 0 12px 24px rgba(14, 165, 233, 0.4);
+            transition: transform 0.08s ease, box-shadow 0.08s ease;
+        }
+        .btn-pitch:active, .btn-pitch.pressed {
+            transform: translateY(5px);
+            box-shadow: 0 1px 0 #0c4a6e, 0 4px 10px rgba(14, 165, 233, 0.4);
+        }
+        /* Interactive Strike Zone / PCI Overlay */
+        #zone-pad {
+            touch-action: none;
+            background: radial-gradient(circle at center, rgba(56, 189, 248, 0.12) 0%, rgba(15, 23, 42, 0.55) 100%);
+            box-shadow: inset 0 0 18px rgba(56, 189, 248, 0.25), 0 8px 24px rgba(0, 0, 0, 0.6);
+        }
+        /* Callout Pop Animation */
+        @keyframes bannerPop {
+            0% { transform: translate(-50%, -50%) scale(0.45); opacity: 0; }
+            65% { transform: translate(-50%, -50%) scale(1.08); opacity: 1; }
+            100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+        }
+        .banner-animate {
+            animation: bannerPop 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+        /* Fireball Pulse */
+        @keyframes firePulse {
+            0%, 100% { box-shadow: 0 0 15px #f97316, inset 0 0 10px #facc15; }
+            50% { box-shadow: 0 0 30px #ef4444, inset 0 0 20px #fef08a; }
+        }
+        .fireball-active {
+            animation: firePulse 0.8s infinite;
+            border-color: #facc15 !important;
+        }
+        /* Rarity Styling */
+        .rarity-SSR {
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.25) 0%, rgba(220, 38, 38, 0.25) 100%);
+            border-color: #fbbf24 !important;
+            box-shadow: 0 0 18px rgba(251, 191, 36, 0.28);
+        }
+        .rarity-SR {
+            background: linear-gradient(135deg, rgba(168, 85, 247, 0.22) 0%, rgba(79, 70, 229, 0.22) 100%);
+            border-color: #c084fc !important;
+        }
+        .rarity-R {
+            background: linear-gradient(135deg, rgba(14, 165, 233, 0.18) 0%, rgba(30, 58, 138, 0.22) 100%);
+            border-color: #38bdf8 !important;
+        }
+        .rarity-N {
+            background: rgba(15, 23, 42, 0.72);
+            border-color: rgba(148, 163, 184, 0.25) !important;
+        }
+        @keyframes cardReveal {
+            0% { transform: scale(0.65) rotateY(40deg); opacity: 0; }
+            100% { transform: scale(1) rotateY(0deg); opacity: 1; }
+        }
+        .card-reveal-anim {
+            animation: cardReveal 0.42s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Fullscreen 3D WebGL Canvas -->
+    <canvas id="game-canvas"></canvas>
+
+    <!-- =========================================================
+         SECTION 1: MAIN LOBBY & COMMERCIAL SHELL OVERLAY
+         ========================================================= -->
+    <div id="lobby-screen" class="fixed inset-0 z-20 flex flex-col justify-between p-3 sm:p-5 pointer-events-none">
+        
+        <!-- Top Account, Currency, VIP & Settings Bar -->
+        <header class="flex flex-wrap items-center justify-between gap-2 pointer-events-auto">
+            <!-- Club & Account Status Pill -->
+            <div class="flex items-center gap-2">
+                <div class="glass-panel rounded-2xl px-3.5 py-2 flex items-center gap-3">
+                    <div id="lobby-jersey-swatch" class="w-10 h-10 rounded-xl flex items-center justify-center font-black text-lg shadow-inner border border-white/30" style="background-color: #1d4ed8;">
+                        ⚾
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-1.5">
+                            <span id="lobby-team-name" class="font-black text-sm sm:text-base tracking-wide text-white">台北猛象隊</span>
+                            <span id="vip-badge" class="hidden px-2 py-0.5 rounded-full text-[10px] font-black bg-gradient-to-r from-amber-400 to-yellow-600 text-slate-950 shadow">VIP 尊榮</span>
+                        </div>
+                        <div class="text-[11px] text-slate-300 flex items-center gap-2">
+                            <span>戰力: <strong id="team-ovr" class="text-amber-400 sport-font">84</strong></span>
+                            <span>•</span>
+                            <span>球員庫: <strong id="owned-count-mini" class="text-cyan-400 sport-font">10/100</strong></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Account Login / User Profile Pill -->
+                <button id="account-header-btn" onclick="openAuthModal()" class="glass-panel hover:bg-slate-800 rounded-2xl px-3.5 py-2 flex items-center gap-2.5 cursor-pointer border border-cyan-400/30 transition">
+                    <div id="user-avatar-badge" class="w-8 h-8 rounded-full bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center text-xs font-black text-white shadow">
+                        👤
+                    </div>
+                    <div class="text-left">
+                        <div id="header-username" class="text-xs font-black text-white">遊客模式 (未登入)</div>
+                        <div id="header-user-sub" class="text-[10px] text-cyan-300 font-bold">點擊登入 / 註冊存檔</div>
+                    </div>
+                </button>
+            </div>
+
+            <!-- Currencies & Quick Environment Toggles -->
+            <div class="flex flex-wrap items-center gap-2">
+                <!-- Shards -->
+                <div class="glass-panel rounded-xl px-2.5 py-1.5 flex items-center gap-1.5" title="選手突破碎片">
+                    <span class="text-purple-400 text-sm">🧩</span>
+                    <span id="ui-shards" class="sport-font font-bold text-xs sm:text-sm text-purple-300">50</span>
+                </div>
+                <!-- Coins -->
+                <div class="glass-panel rounded-xl px-3 py-1.5 flex items-center gap-1.5">
+                    <span class="text-amber-400 text-base">🪙</span>
+                    <span id="ui-coins" class="sport-font font-bold text-xs sm:text-sm text-amber-300">8,000</span>
+                </div>
+                <!-- Diamonds -->
+                <div class="glass-panel rounded-xl px-3 py-1.5 flex items-center gap-1.5">
+                    <span class="text-cyan-400 text-base">💎</span>
+                    <span id="ui-diamonds" class="sport-font font-bold text-xs sm:text-sm text-cyan-300">300</span>
+                    <button onclick="switchLobbyTab('shop', 'plans')" class="ml-1 w-5 h-5 rounded-md bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black text-xs flex items-center justify-center cursor-pointer">+</button>
+                </div>
+                <!-- Day / Night Toggle -->
+                <button id="toggle-lighting-btn" class="glass-panel hover:bg-slate-800 rounded-xl px-3 py-2 text-xs font-bold flex items-center gap-1.5 cursor-pointer" title="切換日/夜間球場">
+                    <span id="lighting-icon">☀️</span>
+                    <span id="lighting-text" class="hidden md:inline">日間球場</span>
+                </button>
+                <!-- Audio & Announcer Toggle -->
+                <button id="lobby-audio-btn" class="glass-panel hover:bg-slate-800 rounded-xl px-3 py-2 text-xs font-bold flex items-center gap-1.5 cursor-pointer" title="音效與語音播報">
+                    <span id="lobby-audio-icon">🔊</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Center Dynamic Tab Content Area -->
+        <main class="flex-1 my-3 overflow-hidden flex items-center justify-center pointer-events-none">
+            
+            <!-- TAB 1: 比賽大廳 (PLAY LOBBY) -->
+            <div id="tab-play" class="lobby-tab w-full max-w-5xl grid grid-cols-1 md:grid-cols-2 gap-4 pointer-events-auto">
+                <!-- Mode Card 1: Full 2-Way Game -->
+                <div class="glass-panel rounded-3xl p-5 sm:p-7 flex flex-col justify-between border-2 border-blue-500/30 hover:border-blue-400 transition relative overflow-hidden group">
+                    <div class="absolute -right-8 -top-8 w-36 h-36 bg-blue-500/15 rounded-full blur-2xl group-hover:bg-blue-400/25 transition"></div>
+                    <div>
+                        <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/20 border border-blue-400/30 text-blue-300 text-xs font-bold mb-3">
+                            <span>🏟️ 雙向真實攻守對決</span>
+                        </div>
+                        <h2 class="text-2xl sm:text-3xl font-black text-white mb-2">職棒巔峰對抗賽</h2>
+                        <p class="text-slate-300 text-xs sm:text-sm leading-relaxed mb-4">
+                            完整體驗「打擊 PCI 瞄準」與「投手九宮格控球」！支援半局攻守交換、跑壘進退與盜壘戰術，套用你的先發 9 棒與王牌投手出戰。
+                        </p>
+                        <div class="flex flex-wrap gap-2 text-[11px] font-bold text-slate-200 mb-5">
+                            <span class="px-2.5 py-1 rounded-lg bg-slate-800/90 border border-slate-700">🎯 PCI 甜蜜點揮棒</span>
+                            <span class="px-2.5 py-1 rounded-lg bg-slate-800/90 border border-slate-700">⚾ 九宮格投球與體力制</span>
+                            <span class="px-2.5 py-1 rounded-lg bg-slate-800/90 border border-slate-700">🏃 手動跑壘 / 盜壘</span>
+                        </div>
+                    </div>
+                    <button onclick="startMatch('FULL_GAME')" class="w-full py-3.5 sm:py-4 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black text-base sm:text-lg tracking-wider shadow-lg shadow-blue-950/60 cursor-pointer transition transform active:scale-98">
+                        立即開賽 (PLAY BALL)
+                    </button>
+                </div>
+
+                <!-- Mode Card 2: Home Run Derby -->
+                <div class="glass-panel rounded-3xl p-5 sm:p-7 flex flex-col justify-between border-2 border-amber-500/30 hover:border-amber-400 transition relative overflow-hidden group">
+                    <div class="absolute -right-8 -top-8 w-36 h-36 bg-amber-500/15 rounded-full blur-2xl group-hover:bg-amber-400/25 transition"></div>
+                    <div>
+                        <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/20 border border-amber-400/30 text-amber-300 text-xs font-bold mb-3">
+                            <span>🔥 限時狂轟挑戰</span>
+                        </div>
+                        <h2 class="text-2xl sm:text-3xl font-black text-white mb-2">全壘打大賽 (HR Derby)</h2>
+                        <p class="text-slate-300 text-xs sm:text-sm leading-relaxed mb-4">
+                            挑戰極限長打火力！連續轟出全壘打累積連擊能量，啟動<strong class="text-amber-300">「火球加分時間 (2X 分數)」</strong>與慢動作全壘打飛行重播！
+                        </p>
+                        <!-- Derby Sub-mode Selector -->
+                        <div class="grid grid-cols-2 gap-2 mb-5">
+                            <button id="derby-opt-time" onclick="selectDerbyRule('TIME')" class="py-2 px-3 rounded-xl bg-amber-500 text-slate-950 font-black text-xs cursor-pointer border border-amber-300">
+                                ⏱️ 60 秒限時賽
+                            </button>
+                            <button id="derby-opt-outs" onclick="selectDerbyRule('OUTS')" class="py-2 px-3 rounded-xl bg-slate-800/90 text-slate-300 font-bold text-xs cursor-pointer border border-slate-700 hover:border-amber-400">
+                                ⚾ 10 出局制
+                            </button>
+                        </div>
+                    </div>
+                    <button onclick="startMatch('DERBY')" class="w-full py-3.5 sm:py-4 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-slate-950 font-black text-base sm:text-lg tracking-wider shadow-lg shadow-orange-950/60 cursor-pointer transition transform active:scale-98">
+                        挑戰全壘打大賽
+                    </button>
+                </div>
+            </div>
+
+            <!-- TAB 2: 100位選手養成與先發陣容設定 (100-PLAYER ROSTER, UPGRADE & LINEUP) -->
+            <div id="tab-roster" class="lobby-tab hidden w-full max-w-6xl h-full max-h-[75vh] glass-panel rounded-3xl p-4 sm:p-5 flex flex-col pointer-events-auto">
+                <!-- Top Header & Team Customizer -->
+                <div class="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-700/80">
+                    <div>
+                        <h2 class="text-lg sm:text-xl font-black text-white">100位選手強化 & 先發陣容設定</h2>
+                        <p class="text-[11px] text-slate-400">點選選手進行「強化升級 (最高 Lv.20)」，並指派至先發 9 棒打線或先發投手</p>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <input id="input-team-name" type="text" maxlength="10" value="台北猛象隊" class="bg-slate-900 border border-slate-600 rounded-xl px-2.5 py-1 text-xs font-bold text-white focus:outline-none focus:border-amber-400 w-28 sm:w-36" placeholder="輸入隊名">
+                        <div class="flex items-center gap-1 bg-slate-900 px-2 py-1 rounded-xl border border-slate-700">
+                            <button onclick="setJerseyColor('#1d4ed8')" class="w-4 h-4 rounded-full bg-blue-700 border border-white cursor-pointer"></button>
+                            <button onclick="setJerseyColor('#dc2626')" class="w-4 h-4 rounded-full bg-red-600 border border-white cursor-pointer"></button>
+                            <button onclick="setJerseyColor('#eab308')" class="w-4 h-4 rounded-full bg-yellow-500 border border-white cursor-pointer"></button>
+                            <button onclick="setJerseyColor('#059669')" class="w-4 h-4 rounded-full bg-emerald-600 border border-white cursor-pointer"></button>
+                            <button onclick="setJerseyColor('#7c3aed')" class="w-4 h-4 rounded-full bg-violet-600 border border-white cursor-pointer"></button>
+                        </div>
+                        <button onclick="autoBestLineup()" class="px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black text-xs cursor-pointer shadow">
+                            ⚡ 一鍵最佳陣容
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Split View: Left = Starting Lineup (9 Batters + 1 SP) | Right = 100-Player Pool & Upgrade -->
+                <div class="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-12 gap-3 mt-3">
+                    
+                    <!-- Left Column: Active Starting Lineup (5 cols) -->
+                    <div class="lg:col-span-5 flex flex-col bg-slate-950/60 rounded-2xl p-3 border border-slate-800 overflow-hidden">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-xs font-black text-amber-400">📋 先發打線與投手 (套用至比賽)</span>
+                            <span id="lineup-avg-ovr" class="text-[11px] font-bold text-slate-300">先發均戰力: 84</span>
+                        </div>
+                        <div id="starting-lineup-list" class="flex-1 overflow-y-auto space-y-1.5 pr-1">
+                            <!-- Populated via JS -->
+                        </div>
+                    </div>
+
+                    <!-- Right Column: 100-Player Pool, Filter & Upgrade Inspector (7 cols) -->
+                    <div class="lg:col-span-7 flex flex-col bg-slate-950/60 rounded-2xl p-3 border border-slate-800 overflow-hidden">
+                        <!-- Filter Bar -->
+                        <div class="flex flex-wrap items-center gap-1.5 mb-2">
+                            <input id="roster-search" oninput="renderRosterTab()" type="text" placeholder="搜尋選手姓名/背號..." class="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white w-32 sm:w-40 focus:outline-none focus:border-cyan-400">
+                            <select id="roster-filter-rarity" onchange="renderRosterTab()" class="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200">
+                                <option value="ALL">全部稀有度</option>
+                                <option value="SSR">SSR 傳奇</option>
+                                <option value="SR">SR 明星</option>
+                                <option value="R">R 精銳</option>
+                                <option value="N">N 一般</option>
+                            </select>
+                            <select id="roster-filter-owned" onchange="renderRosterTab()" class="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200">
+                                <option value="OWNED">已擁有選手</option>
+                                <option value="ALL">全部 100 位圖鑑</option>
+                                <option value="UNOWNED">尚未簽約</option>
+                            </select>
+                        </div>
+
+                        <!-- Selected Player Upgrade Card -->
+                        <div id="player-upgrade-inspector" class="mb-2.5 p-3 rounded-2xl bg-slate-900/95 border border-amber-400/40">
+                            <!-- Populated via JS -->
+                        </div>
+
+                        <!-- Scrollable 100-Player Grid -->
+                        <div id="player-pool-grid" class="flex-1 overflow-y-auto grid grid-cols-2 sm:grid-cols-3 gap-2 pr-1">
+                            <!-- Populated via JS -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 3: 活動中心 (EVENTS) -->
+            <div id="tab-events" class="lobby-tab hidden w-full max-w-4xl h-full max-h-[72vh] glass-panel rounded-3xl p-4 sm:p-6 flex flex-col pointer-events-auto">
+                <div class="pb-3 border-b border-slate-700/80 flex justify-between items-center">
+                    <div>
+                        <h2 class="text-xl sm:text-2xl font-black text-white">限時主題活動中心</h2>
+                        <p class="text-xs text-slate-400">完成賽季限定目標，贏取稀有鑽石、碎片與強化資源！</p>
+                    </div>
+                    <span class="px-3 py-1 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-bold">賽季進行中</span>
+                </div>
+                <div id="events-list" class="flex-1 overflow-y-auto mt-4 space-y-3 pr-1">
+                    <!-- Populated via JS -->
+                </div>
+            </div>
+
+            <!-- TAB 4: 每日任務 (DAILY QUESTS) -->
+            <div id="tab-quests" class="lobby-tab hidden w-full max-w-4xl h-full max-h-[72vh] glass-panel rounded-3xl p-4 sm:p-6 flex flex-col pointer-events-auto">
+                <div class="pb-3 border-b border-slate-700/80 flex justify-between items-center">
+                    <div>
+                        <h2 class="text-xl sm:text-2xl font-black text-white">每日挑戰任務</h2>
+                        <p class="text-xs text-slate-400">比賽與選手養成自動追蹤進度，達成後立即領取獎勵</p>
+                    </div>
+                    <span class="text-xs text-amber-400 font-bold">每日 00:00 重置</span>
+                </div>
+                <div id="quests-list" class="flex-1 overflow-y-auto mt-4 space-y-3 pr-1">
+                    <!-- Populated via JS -->
+                </div>
+            </div>
+
+            <!-- TAB 5: 100位選手商店 & 方案儲值付款中心 (STORE, 100-PLAYER SCOUTING & SUBSCRIPTION PLANS) -->
+            <div id="tab-shop" class="lobby-tab hidden w-full max-w-6xl h-full max-h-[75vh] glass-panel rounded-3xl p-4 sm:p-5 flex flex-col pointer-events-auto">
+                <!-- Shop Header & Sub-Tabs -->
+                <div class="pb-3 border-b border-slate-700/80 flex flex-wrap justify-between items-center gap-2">
+                    <div class="flex flex-wrap items-center gap-2">
+                        <h2 class="text-lg sm:text-xl font-black text-white mr-2">🛒 職棒商城</h2>
+                        <button onclick="switchShopSubTab('scout')" data-shoptab="scout" class="shop-sub-btn px-3 py-1.5 rounded-xl bg-amber-500 text-slate-950 font-black text-xs cursor-pointer">
+                            🎴 選手球探招募
+                        </button>
+                        <button onclick="switchShopSubTab('market')" data-shoptab="market" class="shop-sub-btn px-3 py-1.5 rounded-xl bg-slate-800 text-slate-300 font-bold text-xs cursor-pointer">
+                            👥 100位選手直購市集
+                        </button>
+                        <button onclick="switchShopSubTab('plans')" data-shoptab="plans" class="shop-sub-btn px-3 py-1.5 rounded-xl bg-slate-800 text-slate-300 font-bold text-xs cursor-pointer">
+                            👑 方案購買與儲值付款
+                        </button>
+                        <button onclick="switchShopSubTab('gear')" data-shoptab="gear" class="shop-sub-btn px-3 py-1.5 rounded-xl bg-slate-800 text-slate-300 font-bold text-xs cursor-pointer">
+                            ⚔️ 傳奇球具
+                        </button>
+                    </div>
+                    <div class="flex items-center gap-2 text-xs">
+                        <span class="px-2 py-1 rounded-lg bg-slate-900 text-purple-300 font-bold">🧩 <span id="shop-shards-display">50</span></span>
+                        <span class="px-2 py-1 rounded-lg bg-slate-900 text-amber-300 font-bold">🪙 <span id="shop-coins-display">8,000</span></span>
+                        <span class="px-2 py-1 rounded-lg bg-slate-900 text-cyan-300 font-bold">💎 <span id="shop-diamonds-display">300</span></span>
+                    </div>
+                </div>
+
+                <!-- Sub-Tab A: Gacha Scouting Packs -->
+                <div id="shop-sub-scout" class="shop-sub-view flex-1 overflow-y-auto mt-3 space-y-4 pr-1">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <!-- Pack 1: Standard Coin Scout -->
+                        <div class="glass-card rounded-3xl p-5 flex flex-col justify-between border border-sky-400/30">
+                            <div>
+                                <span class="px-2.5 py-0.5 rounded-full bg-sky-500/20 text-sky-300 text-[11px] font-black">新秀球探包</span>
+                                <h3 class="text-xl font-black text-white mt-2">職棒新秀招募包</h3>
+                                <p class="text-xs text-slate-300 mt-1">從 100 位職棒選手庫中隨機簽約！有機會獲得 SR 明星球員或突破碎片。</p>
+                                <div class="mt-3 text-[11px] text-slate-400 space-y-0.5">
+                                    <div>• SSR 傳奇機率: <strong class="text-amber-400">3%</strong></div>
+                                    <div>• SR 明星機率: <strong class="text-purple-400">17%</strong></div>
+                                    <div>• R 精銳 / N 一般: 80%</div>
+                                </div>
+                            </div>
+                            <div class="mt-4 space-y-2">
+                                <button onclick="scoutPlayers(1, 'coins', 1000)" class="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-amber-400/40 text-amber-300 font-black text-xs cursor-pointer">
+                                    單次招募 (🪙 1,000)
+                                </button>
+                                <button onclick="scoutPlayers(10, 'coins', 9000)" class="w-full py-2.5 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white font-black text-xs cursor-pointer shadow">
+                                    十連招募 • 9折 (🪙 9,000)
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Pack 2: Diamond Premium Scout -->
+                        <div class="glass-card rounded-3xl p-5 flex flex-col justify-between border-2 border-amber-400/50 relative overflow-hidden">
+                            <div class="absolute top-3 right-3 px-2 py-0.5 rounded bg-amber-400 text-slate-950 text-[10px] font-black">十連必中 SR+</div>
+                            <div>
+                                <span class="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[11px] font-black">全明星殿堂卡包</span>
+                                <h3 class="text-xl font-black text-white mt-2">傳奇巨星殿堂招募</h3>
+                                <p class="text-xs text-slate-300 mt-1">大幅提升 <strong class="text-amber-300">SSR 傳奇巨星</strong> 簽約機率！十連抽保證至少獲得 1 位 SR 或 SSR 頂級球星。</p>
+                                <div class="mt-3 text-[11px] text-slate-400 space-y-0.5">
+                                    <div>• SSR 傳奇機率: <strong class="text-amber-400">12%</strong></div>
+                                    <div>• SR 明星機率: <strong class="text-purple-400">38%</strong></div>
+                                    <div>• 重複選手自動轉化為 25 突破碎片</div>
+                                </div>
+                            </div>
+                            <div class="mt-4 space-y-2">
+                                <button onclick="scoutPlayers(1, 'diamonds', 60)" class="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-cyan-400/40 text-cyan-300 font-black text-xs cursor-pointer">
+                                    單次殿堂招募 (💎 60)
+                                </button>
+                                <button onclick="scoutPlayers(10, 'diamonds', 540)" class="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-red-600 hover:from-amber-400 hover:to-red-500 text-white font-black text-xs cursor-pointer shadow-lg">
+                                    十連殿堂招募 (💎 540)
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Pack 3: Shard Exchange -->
+                        <div class="glass-card rounded-3xl p-5 flex flex-col justify-between border border-purple-400/30">
+                            <div>
+                                <span class="px-2.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300 text-[11px] font-black">碎片合成中心</span>
+                                <h3 class="text-xl font-black text-white mt-2">SSR 傳奇自選簽約</h3>
+                                <p class="text-xs text-slate-300 mt-1">使用招募重複轉換的「選手突破碎片」，直接合成尚未擁有的 SSR 傳奇球星！</p>
+                                <div class="mt-3 p-2.5 rounded-xl bg-slate-900/90 border border-slate-800 text-xs">
+                                    目前持有碎片: <strong id="scout-shard-count" class="sport-font text-purple-300 text-base">50</strong> 🧩
+                                </div>
+                            </div>
+                            <div class="mt-4 space-y-2">
+                                <button onclick="redeemSSRWithShards()" class="w-full py-3 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-black text-xs cursor-pointer shadow">
+                                    🧩 150 碎片合成隨機 SSR 傳奇
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sub-Tab B: 100-Player Direct Transfer Market -->
+                <div id="shop-sub-market" class="shop-sub-view hidden flex-1 flex flex-col overflow-hidden mt-3">
+                    <div class="flex flex-wrap items-center justify-between gap-2 mb-2.5">
+                        <div class="flex flex-wrap items-center gap-1.5">
+                            <input id="market-search" oninput="renderMarketGrid()" type="text" placeholder="搜尋 100 位選手..." class="bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white w-36 sm:w-48">
+                            <select id="market-rarity" onchange="renderMarketGrid()" class="bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-slate-200">
+                                <option value="ALL">全部稀有度 (100位)</option>
+                                <option value="SSR">SSR 傳奇巨星</option>
+                                <option value="SR">SR 明星選手</option>
+                                <option value="R">R 精銳選手</option>
+                                <option value="N">N 一般選手</option>
+                            </select>
+                            <select id="market-pos" onchange="renderMarketGrid()" class="bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-slate-200">
+                                <option value="ALL">全部守備位置</option>
+                                <option value="BATTER">野手 / 指定打擊</option>
+                                <option value="PITCHER">投手 (SP / RP)</option>
+                            </select>
+                        </div>
+                        <span class="text-xs text-slate-400">已簽約進度: <strong id="market-owned-label" class="text-amber-400">10 / 100</strong></span>
+                    </div>
+                    <div id="market-players-grid" class="flex-1 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 pr-1">
+                        <!-- Populated via JS -->
+                    </div>
+                </div>
+
+                <!-- Sub-Tab C: Subscription Plans & Diamond Top-Up Store -->
+                <div id="shop-sub-plans" class="shop-sub-view hidden flex-1 overflow-y-auto mt-3 space-y-5 pr-1">
+                    <!-- 3 Subscription & Pass Plans -->
+                    <div>
+                        <div class="flex items-center justify-between mb-2">
+                            <h3 class="text-sm font-black text-amber-400 uppercase tracking-wider">👑 尊榮通行證與訂閱方案 (立即開通特權)</h3>
+                            <button onclick="openOrderHistoryModal()" class="text-xs text-cyan-300 hover:underline cursor-pointer">📜 查看購買與付款紀錄</button>
+                        </div>
+                        <div id="subscription-plans-grid" class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <!-- Populated via JS -->
+                        </div>
+                    </div>
+
+                    <!-- 6 Diamond & Coin Top-up Packs -->
+                    <div>
+                        <h3 class="text-sm font-black text-cyan-400 uppercase tracking-wider mb-2">💎 鑽石與金幣超值儲值包 (首購享雙倍回饋)</h3>
+                        <div id="diamond-packs-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                            <!-- Populated via JS -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sub-Tab D: Equipment Gear -->
+                <div id="shop-sub-gear" class="shop-sub-view hidden flex-1 overflow-y-auto mt-3 pr-1">
+                    <div id="shop-gear-grid" class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <!-- Populated via JS -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 6: 數據與排行榜 (STATS & LEADERBOARD) -->
+            <div id="tab-stats" class="lobby-tab hidden w-full max-w-5xl h-full max-h-[72vh] glass-panel rounded-3xl p-4 sm:p-6 flex flex-col pointer-events-auto">
+                <div class="pb-3 border-b border-slate-700/80">
+                    <h2 class="text-xl sm:text-2xl font-black text-white">生涯數據與全服排行榜</h2>
+                    <p class="text-xs text-slate-400">紀錄你的打擊率、全壘打最遠飛行距離與大賽最高積分</p>
+                </div>
+                <div class="flex-1 overflow-y-auto mt-4 grid grid-cols-1 md:grid-cols-2 gap-4 pr-1">
+                    <!-- Career Stats Card -->
+                    <div class="glass-card rounded-2xl p-4">
+                        <h3 class="text-sm font-black text-amber-400 mb-3">📊 個人生涯紀錄</h3>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-800">
+                                <div class="text-[11px] text-slate-400">生涯打擊率 (AVG)</div>
+                                <div id="career-avg" class="sport-font text-2xl font-black text-white mt-0.5">.000</div>
+                            </div>
+                            <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-800">
+                                <div class="text-[11px] text-slate-400">生涯全壘打 (HR)</div>
+                                <div id="career-hr" class="sport-font text-2xl font-black text-yellow-400 mt-0.5">0</div>
+                            </div>
+                            <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-800">
+                                <div class="text-[11px] text-slate-400">最遠全壘打距離</div>
+                                <div id="career-max-dist" class="sport-font text-2xl font-black text-cyan-400 mt-0.5">0 m</div>
+                            </div>
+                            <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-800">
+                                <div class="text-[11px] text-slate-400">全壘打大賽最高分</div>
+                                <div id="career-derby-high" class="sport-font text-2xl font-black text-emerald-400 mt-0.5">0</div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Leaderboard -->
+                    <div class="glass-card rounded-2xl p-4 flex flex-col">
+                        <h3 class="text-sm font-black text-cyan-400 mb-3">🏆 賽季全壘打積分榜</h3>
+                        <div id="leaderboard-list" class="space-y-2 flex-1">
+                            <!-- Populated via JS -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+
+        <!-- Bottom Navigation Bar -->
+        <nav class="flex justify-center pointer-events-auto">
+            <div class="glass-panel rounded-2xl p-1.5 flex items-center gap-1 sm:gap-2 overflow-x-auto max-w-full">
+                <button onclick="switchLobbyTab('play')" data-tab="play" class="nav-btn px-3 sm:px-5 py-2.5 rounded-xl font-black text-xs sm:text-sm bg-amber-500 text-slate-950 transition cursor-pointer whitespace-nowrap">
+                    ⚾ 比賽大廳
+                </button>
+                <button onclick="switchLobbyTab('roster')" data-tab="roster" class="nav-btn px-3 sm:px-5 py-2.5 rounded-xl font-bold text-xs sm:text-sm text-slate-300 hover:bg-slate-800 transition cursor-pointer whitespace-nowrap">
+                    🧢 選手強化與陣容
+                </button>
+                <button onclick="switchLobbyTab('shop')" data-tab="shop" class="nav-btn px-3 sm:px-5 py-2.5 rounded-xl font-bold text-xs sm:text-sm text-slate-300 hover:bg-slate-800 transition cursor-pointer whitespace-nowrap">
+                    🛒 100選手商店與儲值
+                </button>
+                <button onclick="switchLobbyTab('events')" data-tab="events" class="nav-btn px-3 sm:px-5 py-2.5 rounded-xl font-bold text-xs sm:text-sm text-slate-300 hover:bg-slate-800 transition cursor-pointer whitespace-nowrap">
+                    🎪 活動中心
+                </button>
+                <button onclick="switchLobbyTab('quests')" data-tab="quests" class="nav-btn px-3 sm:px-5 py-2.5 rounded-xl font-bold text-xs sm:text-sm text-slate-300 hover:bg-slate-800 transition cursor-pointer whitespace-nowrap relative">
+                    📋 每日任務
+                    <span id="quest-dot" class="hidden absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose-500"></span>
+                </button>
+                <button onclick="switchLobbyTab('stats')" data-tab="stats" class="nav-btn px-3 sm:px-5 py-2.5 rounded-xl font-bold text-xs sm:text-sm text-slate-300 hover:bg-slate-800 transition cursor-pointer whitespace-nowrap">
+                    🏆 數據排行
+                </button>
+            </div>
+        </nav>
+    </div>
+
+    <!-- =========================================================
+         SECTION 2: IN-GAME BROADCAST HUD & CONTROLS
+         ========================================================= -->
+    <div id="gameplay-hud" class="fixed inset-0 z-10 pointer-events-none hidden">
+        
+        <!-- Top Broadcast Scorebug & Controls -->
+        <div class="fixed top-3 left-3 right-3 sm:top-4 sm:left-4 sm:right-4 flex flex-wrap justify-between items-start gap-2">
+            
+            <!-- Left: Scoreboard Bug (Adapts to Full Game vs HR Derby) -->
+            <div id="fullgame-scorebug" class="glass-panel rounded-2xl p-2.5 sm:p-3 text-white flex items-center gap-3 sm:gap-4 pointer-events-auto">
+                <!-- Teams & Runs -->
+                <div class="flex flex-col gap-1 min-w-[105px] sm:min-w-[125px]">
+                    <div class="flex justify-between items-center bg-slate-800/80 px-2 py-0.5 rounded">
+                        <span class="text-xs font-bold text-rose-300">客隊 RIVAL</span>
+                        <span id="hud-away-score" class="sport-font text-base font-bold text-white">2</span>
+                    </div>
+                    <div class="flex justify-between items-center bg-blue-900/60 border border-blue-500/30 px-2 py-0.5 rounded">
+                        <span id="hud-home-name" class="text-xs font-bold text-blue-300 truncate max-w-[75px]">台北猛象</span>
+                        <span id="hud-home-score" class="sport-font text-base font-bold text-yellow-400">1</span>
+                    </div>
+                </div>
+
+                <!-- Inning & Outs -->
+                <div class="flex flex-col items-center justify-center border-l border-slate-700 pl-3">
+                    <div class="flex items-center gap-1 text-amber-400 font-bold text-xs sm:text-sm">
+                        <span id="hud-inning-half">▲</span>
+                        <span id="hud-inning-num" class="sport-font">8局</span>
+                    </div>
+                    <div class="flex items-center gap-1.5 mt-1.5" title="出局數">
+                        <span id="hud-out-1" class="w-2.5 h-2.5 rounded-full bg-slate-700 border border-slate-500"></span>
+                        <span id="hud-out-2" class="w-2.5 h-2.5 rounded-full bg-slate-700 border border-slate-500"></span>
+                        <span class="text-[10px] text-slate-400 font-bold">OUT</span>
+                    </div>
+                </div>
+
+                <!-- Base Diamond Mini-Map -->
+                <div class="relative w-11 h-11 flex items-center justify-center border-l border-slate-700 pl-3">
+                    <div class="relative w-8 h-8">
+                        <div id="hud-base-2" class="w-3 h-3 rotate-45 border border-white/40 bg-white/15 absolute top-0 left-1/2 -translate-x-1/2 transition"></div>
+                        <div id="hud-base-3" class="w-3 h-3 rotate-45 border border-white/40 bg-white/15 absolute top-1/2 left-0 -translate-y-1/2 transition"></div>
+                        <div id="hud-base-1" class="w-3 h-3 rotate-45 border border-white/40 bg-white/15 absolute top-1/2 right-0 -translate-y-1/2 transition"></div>
+                    </div>
+                </div>
+
+                <!-- Count (B-S) -->
+                <div class="flex flex-col justify-center border-l border-slate-700 pl-3">
+                    <div class="sport-font text-lg sm:text-xl font-bold leading-none">
+                        <span id="hud-balls" class="text-emerald-400">0</span>-<span id="hud-strikes" class="text-rose-400">0</span>
+                    </div>
+                    <div class="text-[10px] text-slate-400 font-bold mt-1">B - S</div>
+                </div>
+
+                <!-- Current Batter / Pitcher Info Pill -->
+                <div class="hidden lg:flex flex-col justify-center border-l border-slate-700 pl-3 text-xs">
+                    <div id="hud-role-badge" class="text-[10px] font-black uppercase text-amber-400">進攻打擊中</div>
+                    <div id="hud-active-player" class="font-bold text-white">第1棒 • 陳傑憲</div>
+                </div>
+            </div>
+
+            <!-- HR Derby Scorebug (Shown only in Derby Mode) -->
+            <div id="derby-scorebug" class="hidden glass-panel rounded-2xl p-3 text-white flex items-center gap-4 pointer-events-auto">
+                <div>
+                    <div class="text-[10px] text-amber-400 font-black uppercase">全壘打大賽積分</div>
+                    <div id="derby-score" class="sport-font text-2xl sm:text-3xl font-black text-yellow-400 leading-none">0</div>
+                </div>
+                <div class="border-l border-slate-700 pl-3">
+                    <div class="text-[10px] text-slate-400 font-bold">全壘打 / 連擊</div>
+                    <div class="sport-font text-base sm:text-lg font-bold">
+                        <span id="derby-hrs" class="text-white">0</span> HR • <span id="derby-combo" class="text-orange-400">0x</span>
+                    </div>
+                </div>
+                <div class="border-l border-slate-700 pl-3">
+                    <div id="derby-limit-label" class="text-[10px] text-cyan-400 font-bold">剩餘時間</div>
+                    <div id="derby-limit-val" class="sport-font text-xl sm:text-2xl font-black text-white leading-none">60s</div>
+                </div>
+                <div id="fireball-badge" class="hidden px-3 py-1.5 rounded-xl bg-gradient-to-r from-orange-500 to-red-600 font-black text-xs text-white animate-bounce">
+                    🔥 火球加倍 2X
+                </div>
+            </div>
+
+            <!-- Right: Pitch Telemetry & Utility Buttons -->
+            <div class="flex items-center gap-2 pointer-events-auto">
+                <div class="glass-panel rounded-xl px-3 py-1.5 text-right hidden sm:block">
+                    <div id="hud-pitch-name" class="text-[11px] font-black text-cyan-400">準備投球</div>
+                    <div id="hud-pitch-speed" class="sport-font text-sm font-bold text-white">-- KM/H</div>
+                </div>
+                <button id="hud-camera-btn" class="glass-panel hover:bg-slate-800 p-2.5 rounded-xl text-xs font-bold cursor-pointer" title="切換視角">
+                    🎥 <span class="hidden md:inline">視角</span>
+                </button>
+                <button id="hud-exit-btn" class="glass-panel hover:bg-rose-900/70 border-rose-500/30 p-2.5 rounded-xl text-xs font-bold text-rose-300 cursor-pointer" title="返回大廳">
+                    🏠 <span class="hidden md:inline">大廳</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Center Callout Banner (HOME RUN, STRIKEOUT, etc.) -->
+        <div id="hud-callout" class="fixed top-[28%] left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-20 hidden text-center">
+            <div id="hud-callout-title" class="sport-font text-4xl sm:text-6xl font-black italic tracking-wider text-white drop-shadow-[0_6px_14px_rgba(0,0,0,0.9)]">
+                HOME RUN!
+            </div>
+            <div id="hud-callout-sub" class="mt-1.5 inline-block bg-slate-950/90 border border-amber-400/40 text-amber-300 font-bold text-xs sm:text-base px-4 py-1 rounded-full shadow-lg">
+                飛行距離 128m • 擊球初速 172 km/h
+            </div>
+        </div>
+
+        <!-- Home Run Replay Telemetry Card & Skip Button -->
+        <div id="replay-overlay" class="fixed top-20 right-4 glass-panel rounded-2xl p-4 border-2 border-amber-400/60 hidden pointer-events-auto z-20 w-64">
+            <div class="flex items-center justify-between mb-2">
+                <span class="px-2 py-0.5 rounded bg-rose-600 text-white text-[10px] font-black animate-pulse">● 慢動作重播 REPLAY</span>
+                <button onclick="skipReplay()" class="text-xs text-slate-300 hover:text-white underline cursor-pointer">略過 ⏭</button>
+            </div>
+            <div class="space-y-1.5 text-xs">
+                <div class="flex justify-between"><span class="text-slate-400">擊球初速:</span><strong id="rep-velo" class="sport-font text-amber-300">174 km/h</strong></div>
+                <div class="flex justify-between"><span class="text-slate-400">發射仰角:</span><strong id="rep-angle" class="sport-font text-cyan-300">28°</strong></div>
+                <div class="flex justify-between"><span class="text-slate-400">飛行距離:</span><strong id="rep-dist" class="sport-font text-emerald-400">131 m</strong></div>
+            </div>
+        </div>
+
+        <!-- =========================================================
+             INTERACTIVE STRIKE ZONE (PCI BATTING / 9-GRID PITCHING)
+             ========================================================= -->
+        <div class="fixed bottom-28 sm:bottom-32 left-1/2 -translate-x-1/2 flex flex-col items-center pointer-events-auto">
+            <div id="zone-instruction" class="mb-1.5 px-3 py-0.5 rounded-full bg-slate-950/80 border border-white/15 text-[11px] font-bold text-cyan-300">
+                拖曳或方向鍵移動 PCI 瞄準框
+            </div>
+
+            <!-- Interactive Strike Zone Box -->
+            <div id="zone-pad" class="relative w-40 h-44 sm:w-48 sm:h-52 rounded-xl border-2 border-white/50 overflow-hidden cursor-crosshair">
+                <!-- 9-Grid Lines (Visible in Pitching Mode) -->
+                <div id="pitch-9grid" class="absolute inset-0 grid grid-cols-3 grid-rows-3 pointer-events-none opacity-40">
+                    <div class="border-r border-b border-white/40"></div>
+                    <div class="border-r border-b border-white/40"></div>
+                    <div class="border-b border-white/40"></div>
+                    <div class="border-r border-b border-white/40"></div>
+                    <div class="border-r border-b border-white/40"></div>
+                    <div class="border-b border-white/40"></div>
+                    <div class="border-r border-white/40"></div>
+                    <div class="border-r border-white/40"></div>
+                    <div></div>
+                </div>
+
+                <!-- Incoming Ball Indicator inside Zone Pad -->
+                <div id="zone-ball-dot" class="hidden absolute w-4 h-4 -ml-2 -mt-2 rounded-full bg-white border-2 border-rose-500 shadow-[0_0_10px_#fff] pointer-events-none"></div>
+
+                <!-- Batting PCI Sweet-Spot Reticle -->
+                <div id="pci-cursor" class="absolute w-20 h-14 -ml-10 -mt-7 rounded-full border-2 border-amber-400 bg-amber-400/25 shadow-[0_0_14px_rgba(250,204,21,0.8)] pointer-events-none flex items-center justify-center" style="left: 50%; top: 50%;">
+                    <div class="w-2.5 h-2.5 rounded-full bg-amber-300"></div>
+                </div>
+
+                <!-- Pitching Target Cursor -->
+                <div id="pitch-target-cursor" class="hidden absolute w-8 h-8 -ml-4 -mt-4 rounded-full border-2 border-cyan-400 bg-cyan-400/25 shadow-[0_0_12px_rgba(56,189,248,0.8)] pointer-events-none flex items-center justify-center" style="left: 50%; top: 50%;">
+                    <div class="w-2 h-2 rounded-full bg-white"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- =========================================================
+             BOTTOM ACTION DECK: BATTING / BASERUNNING / PITCHING
+             ========================================================= -->
+        <div class="fixed bottom-3 left-3 right-3 flex flex-col items-center pointer-events-none">
+            
+            <!-- Timing / Feedback Toast -->
+            <div id="hud-timing-pill" class="mb-2 px-3.5 py-1 rounded-full bg-slate-950/90 border border-white/20 text-xs font-extrabold text-amber-300 opacity-0 transition-opacity duration-200">
+                PERFECT TIMING!
+            </div>
+
+            <!-- BATTING CONTROLS ROW (Swing + Manual Baserunning) -->
+            <div id="batting-controls-row" class="w-full max-w-4xl flex flex-wrap items-center justify-center sm:justify-between gap-2 pointer-events-auto">
+                
+                <!-- Left: Baserunning & Steal Controls -->
+                <div id="baserunning-panel" class="glass-panel rounded-2xl p-2 flex items-center gap-1.5">
+                    <button onclick="commandBaserunners('ADVANCE')" class="px-2.5 py-2 rounded-xl bg-emerald-600/80 hover:bg-emerald-500 text-white text-xs font-black cursor-pointer" title="全體進壘 (E)">
+                        🏃 進壘
+                    </button>
+                    <button onclick="commandBaserunners('RETREAT')" class="px-2.5 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold cursor-pointer" title="全體回壘 (Q)">
+                        ↩️ 回壘
+                    </button>
+                    <button onclick="commandBaserunners('STEAL')" class="px-2.5 py-2 rounded-xl bg-amber-600/90 hover:bg-amber-500 text-slate-950 text-xs font-black cursor-pointer" title="發動盜壘 (S)">
+                        ⚡ 盜壘
+                    </button>
+                    <button onclick="commandBaserunners('TAGUP')" class="px-2.5 py-2 rounded-xl bg-indigo-600/80 hover:bg-indigo-500 text-white text-xs font-bold cursor-pointer" title="高飛犧牲打觸壘起跑">
+                        🏷️ 觸壘跑
+                    </button>
+                </div>
+
+                <!-- Right: Main SWING Button -->
+                <button id="hud-swing-btn" class="btn-swing text-white sport-font text-xl sm:text-2xl font-black tracking-widest px-10 py-3.5 sm:px-14 sm:py-4 rounded-2xl border-2 border-red-300/40 cursor-pointer flex items-center gap-2">
+                    <span>揮棒 SWING</span>
+                    <span class="hidden md:inline text-[11px] font-sans bg-black/30 px-2 py-0.5 rounded text-red-100">SPACE</span>
+                </button>
+            </div>
+
+            <!-- PITCHING CONTROLS ROW (Pitch Type + Stamina + PITCH Button) -->
+            <div id="pitching-controls-row" class="hidden w-full max-w-4xl flex flex-wrap items-center justify-center sm:justify-between gap-2 pointer-events-auto">
+                
+                <!-- Pitch Type Selector & Stamina -->
+                <div class="glass-panel rounded-2xl p-2 flex flex-wrap items-center gap-1.5">
+                    <button onclick="selectPitchType(0)" data-pitch="0" class="pitch-type-btn px-2.5 py-2 rounded-xl bg-rose-600 text-white text-xs font-black cursor-pointer">
+                        🔥 四縫線
+                    </button>
+                    <button onclick="selectPitchType(1)" data-pitch="1" class="pitch-type-btn px-2.5 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-bold cursor-pointer">
+                        🌀 曲球
+                    </button>
+                    <button onclick="selectPitchType(2)" data-pitch="2" class="pitch-type-btn px-2.5 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-bold cursor-pointer">
+                        ⚡ 滑球
+                    </button>
+                    <button onclick="selectPitchType(3)" data-pitch="3" class="pitch-type-btn px-2.5 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-bold cursor-pointer">
+                        🍃 變速球
+                    </button>
+                    <!-- Stamina Gauge -->
+                    <div class="pl-2 border-l border-slate-700 flex items-center gap-1.5">
+                        <span class="text-[10px] text-slate-400 font-bold">體力</span>
+                        <div class="w-16 h-2.5 bg-slate-800 rounded-full overflow-hidden">
+                            <div id="pitcher-stamina-bar" class="h-full bg-emerald-400 transition-all" style="width: 100%;"></div>
+                        </div>
+                        <span id="pitcher-stamina-text" class="sport-font text-xs font-bold text-emerald-300">100%</span>
+                    </div>
+                </div>
+
+                <!-- Main PITCH Button -->
+                <button id="hud-pitch-btn" class="btn-pitch text-white sport-font text-xl sm:text-2xl font-black tracking-widest px-10 py-3.5 sm:px-14 sm:py-4 rounded-2xl border-2 border-cyan-300/40 cursor-pointer flex items-center gap-2">
+                    <span>投球 PITCH</span>
+                    <span class="hidden md:inline text-[11px] font-sans bg-black/30 px-2 py-0.5 rounded text-cyan-100">SPACE</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- =========================================================
+         SECTION 3: MODALS (AUTH, GACHA REVEAL, CHECKOUT & RECEIPT, SUMMARY)
+         ========================================================= -->
+    
+    <!-- 1. ACCOUNT LOGIN / REGISTRATION / GUEST MODAL -->
+    <div id="auth-modal" class="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
+        <div class="glass-panel max-w-md w-full rounded-3xl p-6 border border-cyan-400/30">
+            <div class="flex justify-between items-center pb-3 border-b border-slate-700">
+                <div class="flex items-center gap-2">
+                    <span class="text-xl">⚾</span>
+                    <h3 class="text-lg font-black text-white">球團會員中心 (雲端存檔)</h3>
+                </div>
+                <button onclick="closeAuthModal()" class="text-slate-400 hover:text-white text-xl cursor-pointer">✕</button>
+            </div>
+
+            <!-- Logged-In Account Summary View -->
+            <div id="auth-logged-in-view" class="hidden my-4 space-y-4">
+                <div class="bg-slate-900/90 p-4 rounded-2xl border border-emerald-500/30 flex items-center justify-between">
+                    <div>
+                        <div class="text-xs text-emerald-400 font-bold">● 目前已登入帳號</div>
+                        <div id="auth-current-user" class="text-lg font-black text-white mt-0.5">ProBatter88</div>
+                        <div id="auth-current-email" class="text-xs text-slate-400">player@baseball3d.tw</div>
+                    </div>
+                    <span class="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-black">存檔同步中</span>
+                </div>
+                <div class="text-xs text-slate-300 leading-relaxed">
+                    你的 100 位選手圖鑑、強化等級、VIP 方案購買紀錄與生涯數據皆已安全綁定至此帳號。
+                </div>
+                <div class="grid grid-cols-2 gap-2.5 pt-2">
+                    <button onclick="logoutAccount()" class="py-3 rounded-xl bg-rose-600/80 hover:bg-rose-500 text-white font-black text-xs cursor-pointer">
+                        登出 / 切換帳號
+                    </button>
+                    <button onclick="closeAuthModal()" class="py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs cursor-pointer">
+                        返回遊戲
+                    </button>
+                </div>
+            </div>
+
+            <!-- Login / Register Form View -->
+            <div id="auth-forms-view">
+                <!-- Sub-tabs -->
+                <div class="grid grid-cols-2 gap-2 my-4 bg-slate-900 p-1 rounded-xl">
+                    <button id="auth-tab-login" onclick="switchAuthTab('login')" class="py-2 rounded-lg bg-cyan-500 text-slate-950 font-black text-xs cursor-pointer">
+                        會員登入
+                    </button>
+                    <button id="auth-tab-register" onclick="switchAuthTab('register')" class="py-2 rounded-lg text-slate-300 font-bold text-xs cursor-pointer">
+                        註冊新帳號
+                    </button>
+                </div>
+
+                <div id="auth-error-msg" class="hidden mb-3 px-3 py-2 rounded-xl bg-rose-500/20 border border-rose-500/40 text-rose-300 text-xs font-bold"></div>
+
+                <!-- Login Form -->
+                <form id="login-form" onsubmit="handleLogin(event)" class="space-y-3">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-300 mb-1">帳號名稱或電子信箱</label>
+                        <input id="login-id" type="text" required placeholder="輸入帳號 (例如: MVP2026)" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-cyan-400">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-300 mb-1">密碼</label>
+                        <input id="login-pass" type="password" required placeholder="請輸入密碼" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-cyan-400">
+                    </div>
+                    <button type="submit" class="w-full py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-black text-sm cursor-pointer shadow-lg">
+                        立即登入球團
+                    </button>
+                </form>
+
+                <!-- Register Form -->
+                <form id="register-form" onsubmit="handleRegister(event)" class="hidden space-y-3">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-300 mb-1">球團經理帳號 (3~12字)</label>
+                        <input id="reg-username" type="text" required minlength="3" maxlength="12" placeholder="設定你的遊戲暱稱" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-amber-400">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-300 mb-1">電子信箱</label>
+                        <input id="reg-email" type="email" required placeholder="example@baseball.tw" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-amber-400">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-300 mb-1">設定密碼 (至少 4 碼)</label>
+                        <input id="reg-pass" type="password" required minlength="4" placeholder="請設定登入密碼" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-amber-400">
+                    </div>
+                    <div class="p-2.5 rounded-xl bg-amber-500/15 border border-amber-400/30 text-[11px] text-amber-200">
+                        🎁 新註冊禮遇：立即加贈 <strong>200 鑽石 + 3,000 金幣</strong>！
+                    </div>
+                    <button type="submit" class="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-slate-950 font-black text-sm cursor-pointer shadow-lg">
+                        完成註冊並領取新秀禮包
+                    </button>
+                </form>
+
+                <div class="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between">
+                    <span class="text-[11px] text-slate-400">暫不註冊？可使用本機遊客進度</span>
+                    <button onclick="continueAsGuest()" class="text-xs font-bold text-cyan-400 hover:text-cyan-300 cursor-pointer">
+                        繼續遊客體驗 →
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. GACHA SCOUTING CARD REVEAL MODAL -->
+    <div id="scout-reveal-modal" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
+        <div class="glass-panel max-w-3xl w-full rounded-3xl p-5 sm:p-6 border border-amber-400/40 flex flex-col max-h-[86vh]">
+            <div class="flex justify-between items-center pb-3 border-b border-slate-700">
+                <div>
+                    <h3 class="text-lg sm:text-xl font-black text-amber-300">🎴 球探招募簽約結果</h3>
+                    <p class="text-xs text-slate-300">新選手已加入選手庫，重複選手自動轉換為「選手突破碎片 🧩」</p>
+                </div>
+                <button onclick="closeScoutReveal()" class="px-4 py-2 rounded-xl bg-amber-500 text-slate-950 font-black text-xs cursor-pointer">全部收下</button>
+            </div>
+            <div id="scout-cards-container" class="flex-1 overflow-y-auto my-4 grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+                <!-- Populated via JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. MULTI-METHOD PAYMENT CHECKOUT MODAL -->
+    <div id="payment-modal" class="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
+        <div class="glass-panel max-w-lg w-full rounded-3xl p-5 sm:p-6 border border-cyan-400/30 max-h-[92vh] overflow-y-auto">
+            <div class="flex justify-between items-center pb-3 border-b border-slate-700">
+                <h3 class="text-lg font-black text-white">💳 方案購買與安全結帳中心</h3>
+                <button onclick="closePaymentModal()" class="text-slate-400 hover:text-white text-xl cursor-pointer">✕</button>
+            </div>
+
+            <!-- Order Summary Box -->
+            <div class="my-3.5 bg-slate-900/90 p-4 rounded-2xl border border-slate-800">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <span id="pay-item-tag" class="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[10px] font-black">尊榮通行證</span>
+                        <div id="pay-item-name" class="text-lg font-black text-white mt-1">職棒 VIP 豪華季票</div>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-[11px] text-slate-400">應付金額</div>
+                        <div id="pay-item-price" class="sport-font text-2xl font-black text-amber-400">NT$ 490</div>
+                    </div>
+                </div>
+                <div id="pay-item-desc" class="text-xs text-slate-300 mt-2 leading-relaxed">
+                    立即獲得 1,200 鑽石 + 50,000 金幣 + SSR 傳奇自選券 + VIP 尊榮徽章
+                </div>
+                <!-- Promo Code Input -->
+                <div class="mt-3 pt-3 border-t border-slate-800 flex gap-2">
+                    <input id="promo-code-input" type="text" placeholder="輸入折扣碼 (試試: BASEBALL2026)" class="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-400">
+                    <button type="button" onclick="applyPromoCode()" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-300 font-bold text-xs cursor-pointer">
+                        套用折扣
+                    </button>
+                </div>
+                <div id="promo-status-text" class="hidden text-[11px] text-emerald-400 font-bold mt-1">✓ 已套用 9 折優惠折扣！</div>
+            </div>
+
+            <!-- Payment Method Selection -->
+            <div class="space-y-2.5 mb-4">
+                <div class="text-xs font-bold text-slate-300">選擇付款方式</div>
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <button type="button" onclick="selectPayMethod('CREDIT')" data-pay="CREDIT" class="pay-method-btn py-2.5 px-2 rounded-xl bg-cyan-500/20 border-2 border-cyan-400 text-xs font-bold text-white cursor-pointer">
+                        💳 信用卡
+                    </button>
+                    <button type="button" onclick="selectPayMethod('LINEPAY')" data-pay="LINEPAY" class="pay-method-btn py-2.5 px-2 rounded-xl bg-slate-900 border border-slate-700 text-xs font-bold text-slate-300 cursor-pointer">
+                        🟢 LINE Pay
+                    </button>
+                    <button type="button" onclick="selectPayMethod('APPLEPAY')" data-pay="APPLEPAY" class="pay-method-btn py-2.5 px-2 rounded-xl bg-slate-900 border border-slate-700 text-xs font-bold text-slate-300 cursor-pointer">
+                        🍎 Apple Pay
+                    </button>
+                    <button type="button" onclick="selectPayMethod('CVS')" data-pay="CVS" class="pay-method-btn py-2.5 px-2 rounded-xl bg-slate-900 border border-slate-700 text-xs font-bold text-slate-300 cursor-pointer">
+                        🏪 超商代碼
+                    </button>
+                </div>
+
+                <!-- Dynamic Payment Details Panel -->
+                <div id="pay-detail-credit" class="p-3 rounded-xl bg-slate-900/80 border border-slate-800 space-y-2">
+                    <input type="text" value="4532 •••• •••• 8829" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200 sport-font" placeholder="信用卡卡號">
+                    <div class="grid grid-cols-2 gap-2">
+                        <input type="text" value="09/29" class="bg-slate-950 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200 sport-font" placeholder="MM/YY">
+                        <input type="text" value="888" class="bg-slate-950 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200 sport-font" placeholder="CVC">
+                    </div>
+                </div>
+                <div id="pay-detail-alt" class="hidden p-3 rounded-xl bg-slate-900/80 border border-slate-800 text-xs text-slate-300">
+                    點擊下方「確認付款」將立即啟動快速行動支付驗證並自動發放虛寶至你的球團帳號。
+                </div>
+            </div>
+
+            <button id="confirm-pay-btn" onclick="processSimulatedPayment()" class="w-full py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-base tracking-wide cursor-pointer shadow-lg">
+                確認付款並立即發貨
+            </button>
+        </div>
+    </div>
+
+    <!-- 4. ELECTRONIC RECEIPT MODAL -->
+    <div id="receipt-modal" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
+        <div class="glass-panel max-w-md w-full rounded-3xl p-6 text-center border border-emerald-400/40">
+            <div class="w-14 h-14 rounded-full bg-emerald-500/20 border border-emerald-400 text-emerald-300 text-3xl flex items-center justify-center mx-auto mb-3">
+                ✓
+            </div>
+            <h3 class="text-2xl font-black text-white">付款成功 • 虛寶已發放！</h3>
+            <p class="text-xs text-slate-300 mt-1">感謝你的支持，所有方案特權與獎勵已即時入帳。</p>
+            <div id="receipt-details" class="my-4 bg-slate-900/95 p-4 rounded-2xl border border-slate-800 text-left text-xs space-y-1.5">
+                <!-- Populated via JS -->
+            </div>
+            <button onclick="document.getElementById('receipt-modal').classList.add('hidden')" class="w-full py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-sm cursor-pointer">
+                完成並查看戰力
+            </button>
+        </div>
+    </div>
+
+    <!-- 5. ORDER HISTORY MODAL -->
+    <div id="history-modal" class="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
+        <div class="glass-panel max-w-lg w-full rounded-3xl p-6 border border-slate-700 flex flex-col max-h-[80vh]">
+            <div class="flex justify-between items-center pb-3 border-b border-slate-700">
+                <h3 class="text-lg font-black text-white">📜 帳號購買與付款紀錄</h3>
+                <button onclick="document.getElementById('history-modal').classList.add('hidden')" class="text-slate-400 hover:text-white text-xl cursor-pointer">✕</button>
+            </div>
+            <div id="order-history-list" class="flex-1 overflow-y-auto my-4 space-y-2 pr-1 text-xs">
+                <!-- Populated via JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Post-Match Summary Modal -->
+    <div id="summary-modal" class="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-30 hidden flex items-center justify-center p-4">
+        <div class="glass-panel max-w-md w-full rounded-3xl p-6 sm:p-8 text-center border border-amber-400/30">
+            <div id="sum-badge" class="inline-block px-3 py-1 rounded-full text-xs font-black bg-amber-500/20 text-amber-300 border border-amber-400/40 mb-2">
+                比賽結束
+            </div>
+            <h2 id="sum-title" class="text-3xl font-black text-white mb-2">逆轉再見勝！</h2>
+            <p id="sum-desc" class="text-slate-300 text-sm mb-5">精彩的九局下半再見安打，全場觀眾起立歡呼！</p>
+            
+            <div class="bg-slate-900/90 rounded-2xl p-4 mb-5 border border-slate-800 space-y-2">
+                <div id="sum-scoreline" class="sport-font text-2xl font-black text-yellow-400">客隊 2 : 3 台北猛象隊</div>
+                <div class="text-xs text-emerald-400 font-bold" id="sum-rewards">獲得獎勵: +600 金幣 • +15 鑽石</div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <button onclick="returnToLobby()" class="py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-sm cursor-pointer">
+                    返回大廳
+                </button>
+                <button onclick="rematch()" class="py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-sm cursor-pointer">
+                    再戰一場
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // =========================================================================
+        // 1. 100-PLAYER DATABASE GENERATOR & MULTI-ACCOUNT PERSISTENCE
+        // =========================================================================
+        const SURNAMES = ['陳', '林', '黃', '張', '李', '王', '吳', '劉', '蔡', '楊', '許', '鄭', '謝', '郭', '洪', '邱', '曾', '廖', '賴', '徐'];
+        const GIVEN_NAMES = ['傑憲', '立', '育成', '安可', '吉撈', '坤宇', '威晨', '培峰', '晨威', '睿煬', '柏融', '智勝', '益全', '子豪', '俊秀', '志豪', '哲瑄', '凱威', '冠宇', '靖凱'];
+        const POSITIONS = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH', 'SP'];
+        const TRAITS = ['重砲手', '安打製造機', '盜壘快腿', '得點圈之鬼', '火球男', '精密控球', '逆轉王', '鐵捕指揮官', '三振機器', '全能金手套'];
+
+        // Deterministic 100-Player Catalog
+        const PLAYER_CATALOG_100 = (() => {
+            const list = [];
+            const starPresets = [
+                { name: '陳傑憲', pos: 'CF', rarity: 'SSR', p: 84, c: 96, s: 92, trait: '安打製造機' },
+                { name: '張育成', pos: 'SS', rarity: 'SSR', p: 96, c: 90, s: 84, trait: '重砲手' },
+                { name: '林立', pos: '2B', rarity: 'SSR', p: 89, c: 93, s: 88, trait: '得點圈之鬼' },
+                { name: '林安可', pos: 'RF', rarity: 'SSR', p: 95, c: 86, s: 80, trait: '逆轉王' },
+                { name: '吉力吉撈', pos: 'DH', rarity: 'SSR', p: 97, c: 84, s: 72, trait: '重砲手' },
+                { name: '古林睿煬', pos: 'SP', rarity: 'SSR', p: 96, c: 92, s: 94, trait: '火球男' },
+                { name: '徐若熙', pos: 'SP', rarity: 'SSR', p: 95, c: 90, s: 88, trait: '三振機器' },
+                { name: '江坤宇', pos: '3B', rarity: 'SR', p: 76, c: 91, s: 87, trait: '全能金手套' },
+                { name: '王威晨', pos: '1B', rarity: 'SR', p: 78, c: 89, s: 86, trait: '安打製造機' },
+                { name: '戴培峰', pos: 'C', rarity: 'SR', p: 79, c: 85, s: 74, trait: '鐵捕指揮官' },
+                { name: '陳晨威', pos: 'LF', rarity: 'SR', p: 80, c: 87, s: 98, trait: '盜壘快腿' },
+                { name: '吳俊偉', pos: 'SP', rarity: 'SR', p: 88, c: 86, s: 85, trait: '精密控球' }
+            ];
+
+            for (let i = 0; i < 100; i++) {
+                if (i < starPresets.length) {
+                    const st = starPresets[i];
+                    list.push({
+                        id: i + 1,
+                        jerseyNo: (i * 7 + 1) % 99 + 1,
+                        name: st.name,
+                        pos: st.pos,
+                        rarity: st.rarity,
+                        basePower: st.p,
+                        baseContact: st.c,
+                        baseSpeed: st.s,
+                        trait: st.trait,
+                        handedness: i % 3 === 0 ? '左打' : '右打'
+                    });
+                } else {
+                    const rarity = i < 20 ? 'SSR' : i < 45 ? 'SR' : i < 75 ? 'R' : 'N';
+                    const baseFloor = rarity === 'SSR' ? 84 : rarity === 'SR' ? 76 : rarity === 'R' ? 68 : 60;
+                    const pos = POSITIONS[i % POSITIONS.length];
+                    const name = SURNAMES[(i * 3) % SURNAMES.length] + GIVEN_NAMES[(i * 7 + 3) % GIVEN_NAMES.length];
+                    list.push({
+                        id: i + 1,
+                        jerseyNo: (i * 11 + 3) % 99 + 1,
+                        name: `${name}`,
+                        pos,
+                        rarity,
+                        basePower: baseFloor + ((i * 5) % 13),
+                        baseContact: baseFloor + ((i * 7) % 13),
+                        baseSpeed: baseFloor + ((i * 9) % 13),
+                        trait: TRAITS[i % TRAITS.length],
+                        handedness: pos === 'SP' ? (i % 4 === 0 ? '左投' : '右投') : (i % 3 === 0 ? '左打' : '右打')
+                    });
+                }
+            }
+            return list;
+        })();
+
+        // Subscription Plans & Top-Up Packs Catalog
+        const SUBSCRIPTION_PLANS = [
+            {
+                id: 'plan_rookie',
+                tag: '超值入門月卡',
+                name: '新秀成長月卡',
+                price: 150,
+                priceText: 'NT$ 150',
+                desc: '立即獲得 300 鑽石 + 10,000 金幣 + 選手強化經驗 +20% + 每日簽到加贈鑽石',
+                diamonds: 300,
+                coins: 10000,
+                shards: 30,
+                isVip: true,
+                grantSSR: 0
+            },
+            {
+                id: 'plan_vip_season',
+                tag: '最多玩家選擇',
+                name: '職棒 VIP 豪華季票',
+                price: 490,
+                priceText: 'NT$ 490',
+                desc: '立即獲得 1,200 鑽石 + 50,000 金幣 + 隨機 1 位 SSR 傳奇巨星 + VIP 尊榮徽章 + 賽後獎勵加倍',
+                diamonds: 1200,
+                coins: 50000,
+                shards: 80,
+                isVip: true,
+                grantSSR: 1
+            },
+            {
+                id: 'plan_legend_life',
+                tag: '終身尊榮典藏',
+                name: '傳奇球團終身方案',
+                price: 1290,
+                priceText: 'NT$ 1,290',
+                desc: '立即獲得 3,800 鑽石 + 150,000 金幣 + 3 位 SSR 傳奇巨星 + 全隊永久戰力加成 + VIP 尊榮特權',
+                diamonds: 3800,
+                coins: 150000,
+                shards: 200,
+                isVip: true,
+                grantSSR: 3
+            }
+        ];
+
+        const DIAMOND_PACKS = [
+            { id: 'dia_60', tag: '首購雙倍', name: '60 鑽石小禮包', price: 30, priceText: 'NT$ 30', diamonds: 120, coins: 1000, shards: 5, isVip: false, grantSSR: 0 },
+            { id: 'dia_300', tag: '首購雙倍', name: '300 鑽石補給包', price: 150, priceText: 'NT$ 150', diamonds: 600, coins: 5000, shards: 15, isVip: false, grantSSR: 0 },
+            { id: 'dia_980', tag: '熱門推薦', name: '980 鑽石球星包', price: 490, priceText: 'NT$ 490', diamonds: 1960, coins: 20000, shards: 40, isVip: false, grantSSR: 0 },
+            { id: 'dia_1980', tag: '超值回饋', name: '1,980 鑽石豪華箱', price: 990, priceText: 'NT$ 990', diamonds: 3960, coins: 45000, shards: 80, isVip: false, grantSSR: 0 },
+            { id: 'dia_3280', tag: '重砲禮盒', name: '3,280 鑽石冠軍箱', price: 1690, priceText: 'NT$ 1,690', diamonds: 6560, coins: 80000, shards: 120, isVip: false, grantSSR: 1 },
+            { id: 'dia_6480', tag: '殿堂至尊', name: '6,480 鑽石殿堂金庫', price: 3290, priceText: 'NT$ 3,290', diamonds: 12960, coins: 200000, shards: 250, isVip: true, grantSSR: 2 }
+        ];
+
+        const SHOP_GEAR = [
+            { id: 'bat_gold', name: '傳奇黃金球棒', desc: '全隊打者力量 (Power) 永久 +6', currency: 'coins', price: 3500, icon: '🏏', bonusType: 'power', bonusVal: 6 },
+            { id: 'cleats_pro', name: '疾風碳纖維釘鞋', desc: '全隊打者速度 (Speed) 永久 +6', currency: 'coins', price: 3000, icon: '👟', bonusType: 'speed', bonusVal: 6 },
+            { id: 'glove_ace', name: '職人控球護腕', desc: '投手控球與體力恢復 +12', currency: 'diamonds', price: 120, icon: '🧤', bonusType: 'control', bonusVal: 12 }
+        ];
+
+        // Multi-Account & Profile State Management
+        function createFreshProfile(username = '遊客經理', email = 'guest@baseball3d.tw', isGuest = true) {
+            // Starter 10 players (9 batters + 1 SP)
+            const starterIds = [1, 2, 3, 4, 5, 8, 9, 10, 11, 6];
+            const ownedPlayers = {};
+            starterIds.forEach(id => { ownedPlayers[id] = { level: 1 }; });
+
+            return {
+                username,
+                email,
+                isGuest,
+                coins: 8000,
+                diamonds: 300,
+                shards: 50,
+                isVip: false,
+                activePlanName: '',
+                teamName: '台北猛象隊',
+                jerseyColor: '#1d4ed8',
+                ownedGear: [],
+                ownedPlayers, // { [playerId]: { level: 1..20 } }
+                lineupBatterIds: [1, 2, 3, 4, 5, 8, 9, 10, 11], // 9 Batting slots
+                startingPitcherId: 6,
+                orders: [],
+                quests: [
+                    { id: 'q_hr', title: '重砲出擊：累計擊出 3 支全壘打', target: 3, progress: 0, rewardCoins: 1200, rewardDiamonds: 30, claimed: false },
+                    { id: 'q_upgrade', title: '精益求精：強化任意選手 3 次', target: 3, progress: 0, rewardCoins: 1000, rewardDiamonds: 25, claimed: false },
+                    { id: 'q_scout', title: '球探伯樂：進行 1 次選手招募', target: 1, progress: 0, rewardCoins: 1500, rewardDiamonds: 40, claimed: false },
+                    { id: 'q_derby', title: '全壘打大賽：完成 1 場全壘打大賽', target: 1, progress: 0, rewardCoins: 1000, rewardDiamonds: 25, claimed: false }
+                ],
+                events: [
+                    { id: 'ev_weekend', title: '週末全壘打王挑戰賽', desc: '累計轟出 5 支全壘打，領取限定鑽石大禮包', target: 5, progress: 0, rewardDiamonds: 100, claimed: false },
+                    { id: 'ev_collector', title: '百大球星收集家', desc: '累計招募簽約 20 位選手', target: 20, progress: 10, rewardDiamonds: 120, claimed: false }
+                ],
+                stats: {
+                    wins: 0,
+                    atBats: 0,
+                    hits: 0,
+                    hrs: 0,
+                    maxHrDist: 0,
+                    derbyHigh: 0
+                }
+            };
+        }
+
+        const ACCOUNTS_KEY = 'pro_baseball_3d_accounts_v2';
+        const ACTIVE_USER_KEY = 'pro_baseball_3d_active_user_v2';
+
+        function ensureValidProfile(raw) {
+            const base = createFreshProfile('遊客經理', 'guest@baseball3d.tw', true);
+            if (!raw || typeof raw !== 'object') return base;
+            return {
+                ...base,
+                ...raw,
+                coins: typeof raw.coins === 'number' ? raw.coins : base.coins,
+                diamonds: typeof raw.diamonds === 'number' ? raw.diamonds : base.diamonds,
+                shards: typeof raw.shards === 'number' ? raw.shards : base.shards,
+                ownedPlayers: (raw.ownedPlayers && typeof raw.ownedPlayers === 'object') ? raw.ownedPlayers : base.ownedPlayers,
+                ownedGear: Array.isArray(raw.ownedGear) ? raw.ownedGear : base.ownedGear,
+                lineupBatterIds: Array.isArray(raw.lineupBatterIds) && raw.lineupBatterIds.length === 9 ? raw.lineupBatterIds : base.lineupBatterIds,
+                orders: Array.isArray(raw.orders) ? raw.orders : base.orders,
+                quests: Array.isArray(raw.quests) ? raw.quests : base.quests,
+                events: Array.isArray(raw.events) ? raw.events : base.events,
+                stats: (raw.stats && typeof raw.stats === 'object') ? { ...base.stats, ...raw.stats } : base.stats
+            };
+        }
+
+        let accountStore = {};
+        try {
+            const parsed = JSON.parse(localStorage.getItem(ACCOUNTS_KEY));
+            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                accountStore = parsed;
+            }
+        } catch (e) {
+            accountStore = {};
+        }
+
+        let currentAccountKey = localStorage.getItem(ACTIVE_USER_KEY) || 'guest';
+
+        if (!accountStore[currentAccountKey] || typeof accountStore[currentAccountKey] !== 'object' || !accountStore[currentAccountKey].profile) {
+            currentAccountKey = 'guest';
+            accountStore['guest'] = {
+                password: '',
+                profile: createFreshProfile('遊客經理', 'guest@baseball3d.tw', true)
+            };
+        }
+        accountStore[currentAccountKey].profile = ensureValidProfile(accountStore[currentAccountKey].profile);
+        let profile = accountStore[currentAccountKey].profile;
+
+        function saveProfile() {
+            profile = ensureValidProfile(profile);
+            if (!accountStore[currentAccountKey] || typeof accountStore[currentAccountKey] !== 'object') {
+                accountStore[currentAccountKey] = { password: '', profile };
+            } else {
+                accountStore[currentAccountKey].profile = profile;
+            }
+            try {
+                localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accountStore));
+                localStorage.setItem(ACTIVE_USER_KEY, currentAccountKey);
+            } catch (e) {}
+            updateLobbyUI();
+        }
+
+        // Helper: Calculate Scaled Player Stats by Level (Lv.1 to Lv.20)
+        function getPlayerComputedStats(playerId) {
+            const base = PLAYER_CATALOG_100.find(p => p.id === playerId) || PLAYER_CATALOG_100[0];
+            const ownedInfo = profile.ownedPlayers[playerId];
+            const level = ownedInfo ? ownedInfo.level : 1;
+            const lvBonus = (level - 1) * 1.5;
+            const gearPowerBonus = profile.ownedGear.includes('bat_gold') ? 6 : 0;
+            const gearSpeedBonus = profile.ownedGear.includes('cleats_pro') ? 6 : 0;
+            const gearCtrlBonus = profile.ownedGear.includes('glove_ace') ? 12 : 0;
+
+            const power = Math.min(125, Math.round(base.basePower + lvBonus + (base.pos !== 'SP' ? gearPowerBonus : 0)));
+            const contact = Math.min(125, Math.round(base.baseContact + lvBonus + (base.pos === 'SP' ? gearCtrlBonus : 0)));
+            const speed = Math.min(125, Math.round(base.baseSpeed + lvBonus + (base.pos !== 'SP' ? gearSpeedBonus : 0)));
+            const ovr = Math.round((power + contact + speed) / 3);
+
+            return { ...base, level, owned: !!ownedInfo, power, contact, speed, ovr };
+        }
+
+        // =========================================================================
+        // 1B. ACCOUNT LOGIN, REGISTRATION & LOGOUT HANDLERS
+        // =========================================================================
+        function openAuthModal() {
+            document.getElementById('auth-error-msg').classList.add('hidden');
+            const isLogged = !profile.isGuest;
+            document.getElementById('auth-logged-in-view').classList.toggle('hidden', !isLogged);
+            document.getElementById('auth-forms-view').classList.toggle('hidden', isLogged);
+            if (isLogged) {
+                document.getElementById('auth-current-user').textContent = profile.username;
+                document.getElementById('auth-current-email').textContent = profile.email;
+            }
+            document.getElementById('auth-modal').classList.remove('hidden');
+        }
+
+        function closeAuthModal() {
+            document.getElementById('auth-modal').classList.add('hidden');
+        }
+
+        function switchAuthTab(tab) {
+            document.getElementById('auth-error-msg').classList.add('hidden');
+            document.getElementById('login-form').classList.toggle('hidden', tab !== 'login');
+            document.getElementById('register-form').classList.toggle('hidden', tab !== 'register');
+            document.getElementById('auth-tab-login').className = tab === 'login'
+                ? 'py-2 rounded-lg bg-cyan-500 text-slate-950 font-black text-xs cursor-pointer'
+                : 'py-2 rounded-lg text-slate-300 font-bold text-xs cursor-pointer';
+            document.getElementById('auth-tab-register').className = tab === 'register'
+                ? 'py-2 rounded-lg bg-amber-500 text-slate-950 font-black text-xs cursor-pointer'
+                : 'py-2 rounded-lg text-slate-300 font-bold text-xs cursor-pointer';
+        }
+
+        function showAuthError(msg) {
+            const el = document.getElementById('auth-error-msg');
+            el.textContent = msg;
+            el.classList.remove('hidden');
+        }
+
+        function handleRegister(e) {
+            e.preventDefault();
+            const username = document.getElementById('reg-username').value.trim();
+            const email = document.getElementById('reg-email').value.trim().toLowerCase();
+            const password = document.getElementById('reg-pass').value;
+
+            const key = username.toLowerCase();
+            if (accountStore[key]) {
+                return showAuthError('此帳號名稱已被註冊，請換一個名稱或直接登入！');
+            }
+
+            const newProf = createFreshProfile(username, email, false);
+            newProf.diamonds += 200; // Registration gift
+            newProf.coins += 3000;
+            newProf.teamName = `${username}隊`;
+
+            accountStore[key] = { password, profile: newProf };
+            currentAccountKey = key;
+            profile = newProf;
+            saveProfile();
+            closeAuthModal();
+            showToast(`🎉 歡迎加入 ${username}！已領取註冊禮包`);
+        }
+
+        function handleLogin(e) {
+            e.preventDefault();
+            const idInput = document.getElementById('login-id').value.trim().toLowerCase();
+            const passInput = document.getElementById('login-pass').value;
+
+            let foundKey = null;
+            for (const [k, record] of Object.entries(accountStore)) {
+                if (k === 'guest') continue;
+                if (k === idInput || record.profile.email.toLowerCase() === idInput) {
+                    foundKey = k;
+                    break;
+                }
+            }
+
+            if (!foundKey) return showAuthError('找不到此帳號，請先點擊上方「註冊新帳號」');
+            if (accountStore[foundKey].password !== passInput) return showAuthError('密碼錯誤，請重新輸入！');
+
+            currentAccountKey = foundKey;
+            accountStore[foundKey].profile = ensureValidProfile(accountStore[foundKey].profile);
+            profile = accountStore[foundKey].profile;
+            saveProfile();
+            closeAuthModal();
+            showToast(`✓ 歡迎回來，${profile.username}！`);
+        }
+
+        function logoutAccount() {
+            currentAccountKey = 'guest';
+            if (!accountStore['guest'] || typeof accountStore['guest'] !== 'object') {
+                accountStore['guest'] = { password: '', profile: createFreshProfile('遊客經理', 'guest@baseball3d.tw', true) };
+            }
+            accountStore['guest'].profile = ensureValidProfile(accountStore['guest'].profile);
+            profile = accountStore['guest'].profile;
+            saveProfile();
+            openAuthModal();
+        }
+
+        function continueAsGuest() {
+            closeAuthModal();
+            showToast('目前以遊客模式體驗，隨時可於上方登入綁定存檔');
+        }
+
+        // =========================================================================
+        // 2. WEB AUDIO SYNTHESIZER & WEB SPEECH ANNOUNCER
+        // =========================================================================
+        class BroadcastAudio {
+            constructor() {
+                this.ctx = null;
+                this.muted = false;
+            }
+            init() {
+                if (!this.ctx) {
+                    const AC = window.AudioContext || window.webkitAudioContext;
+                    this.ctx = new AC();
+                }
+                if (this.ctx.state === 'suspended') this.ctx.resume();
+            }
+            toggleMute() {
+                this.muted = !this.muted;
+                return this.muted;
+            }
+            speak(text) {
+                if (this.muted || !('speechSynthesis' in window)) return;
+                try {
+                    window.speechSynthesis.cancel();
+                    const utter = new SpeechSynthesisUtterance(text);
+                    utter.lang = 'en-US';
+                    utter.rate = 1.12;
+                    utter.pitch = 1.05;
+                    window.speechSynthesis.speak(utter);
+                } catch (e) {}
+            }
+            playBatCrack(quality = 1.0) {
+                if (this.muted) return;
+                this.init();
+                const now = this.ctx.currentTime;
+                // Sweet-spot crisp crack vs off-center dull thud
+                const bufSize = this.ctx.sampleRate * 0.14;
+                const buf = this.ctx.createBuffer(1, bufSize, this.ctx.sampleRate);
+                const data = buf.getChannelData(0);
+                for (let i = 0; i < bufSize; i++) {
+                    data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (this.ctx.sampleRate * (0.012 + quality * 0.01)));
+                }
+                const src = this.ctx.createBufferSource();
+                src.buffer = buf;
+
+                const filter = this.ctx.createBiquadFilter();
+                filter.type = 'bandpass';
+                filter.frequency.setValueAtTime(650 + quality * 1450, now);
+                filter.Q.value = quality > 0.7 ? 2.2 : 0.9;
+
+                const gain = this.ctx.createGain();
+                gain.gain.setValueAtTime(0.4 + quality * 0.65, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.14);
+
+                src.connect(filter);
+                filter.connect(gain);
+                gain.connect(this.ctx.destination);
+                src.start(now);
+
+                if (quality > 0.65) {
+                    const osc = this.ctx.createOscillator();
+                    const og = this.ctx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(620, now);
+                    osc.frequency.exponentialRampToValueAtTime(160, now + 0.1);
+                    og.gain.setValueAtTime(0.45, now);
+                    og.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+                    osc.connect(og);
+                    og.connect(this.ctx.destination);
+                    osc.start(now);
+                    osc.stop(now + 0.11);
+                }
+            }
+            playMittPop() {
+                if (this.muted) return;
+                this.init();
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const g = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(175, now);
+                osc.frequency.exponentialRampToValueAtTime(48, now + 0.08);
+                g.gain.setValueAtTime(0.45, now);
+                g.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
+                osc.connect(g);
+                g.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.09);
+            }
+            playWalkUpOrgan() {
+                if (this.muted) return;
+                this.init();
+                const now = this.ctx.currentTime;
+                // Classic stadium organ Charge! riff
+                const notes = [261.63, 329.63, 392.00, 523.25, 392.00, 523.25];
+                const times = [0, 0.12, 0.24, 0.36, 0.54, 0.68];
+                notes.forEach((f, idx) => {
+                    const osc = this.ctx.createOscillator();
+                    const g = this.ctx.createGain();
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(f, now + times[idx]);
+                    const lpf = this.ctx.createBiquadFilter();
+                    lpf.type = 'lowpass';
+                    lpf.frequency.value = 1600;
+                    g.gain.setValueAtTime(0.11, now + times[idx]);
+                    g.gain.exponentialRampToValueAtTime(0.001, now + times[idx] + 0.18);
+                    osc.connect(lpf);
+                    lpf.connect(g);
+                    g.connect(this.ctx.destination);
+                    osc.start(now + times[idx]);
+                    osc.stop(now + times[idx] + 0.2);
+                });
+            }
+            playHomeRunCelebration() {
+                if (this.muted) return;
+                this.init();
+                const now = this.ctx.currentTime;
+                const chord = [261.63, 329.63, 392.00, 523.25];
+                chord.forEach((f, i) => {
+                    const osc = this.ctx.createOscillator();
+                    const g = this.ctx.createGain();
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(f, now + i * 0.1);
+                    g.gain.setValueAtTime(0.16, now + i * 0.1);
+                    g.gain.exponentialRampToValueAtTime(0.001, now + i * 0.1 + 0.85);
+                    osc.connect(g);
+                    g.connect(this.ctx.destination);
+                    osc.start(now + i * 0.1);
+                    osc.stop(now + i * 0.1 + 0.9);
+                });
+            }
+        }
+        const audio = new BroadcastAudio();
+
+        // =========================================================================
+        // 3. THREE.JS 3D BALLPARK, DAY/NIGHT LIGHTING & ARTICULATED PLAYERS
+        // =========================================================================
+        const canvas = document.getElementById('game-canvas');
+        const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0ea5e9);
+        scene.fog = new THREE.FogExp2(0x0ea5e9, 0.0042);
+
+        const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 450);
+
+        // Day & Night Lighting Rig
+        let isNightMode = false;
+        const hemiLight = new THREE.HemisphereLight(0xffffff, 0x166534, 0.9);
+        scene.add(hemiLight);
+
+        const sunLight = new THREE.DirectionalLight(0xfffbeb, 1.35);
+        sunLight.position.set(45, 75, 35);
+        sunLight.castShadow = true;
+        sunLight.shadow.mapSize.set(2048, 2048);
+        sunLight.shadow.camera.near = 10;
+        sunLight.shadow.camera.far = 220;
+        const dShadow = 85;
+        sunLight.shadow.camera.left = -dShadow;
+        sunLight.shadow.camera.right = dShadow;
+        sunLight.shadow.camera.top = dShadow;
+        sunLight.shadow.camera.bottom = -dShadow;
+        scene.add(sunLight);
+
+        const stadiumFloodlights = [];
+        function applyLightingMode() {
+            if (isNightMode) {
+                scene.background.setHex(0x060b19);
+                scene.fog.color.setHex(0x060b19);
+                hemiLight.intensity = 0.35;
+                sunLight.intensity = 0.25;
+                stadiumFloodlights.forEach(l => l.intensity = 1.45);
+            } else {
+                scene.background.setHex(0x38bdf8);
+                scene.fog.color.setHex(0x38bdf8);
+                hemiLight.intensity = 0.92;
+                sunLight.intensity = 1.35;
+                stadiumFloodlights.forEach(l => l.intensity = 0);
+            }
+        }
+
+        // Stadium Field Geometry
+        const outfieldGeo = new THREE.CircleGeometry(140, 64);
+        const outfieldMat = new THREE.MeshStandardMaterial({ color: 0x15803d, roughness: 0.85 });
+        const outfieldMesh = new THREE.Mesh(outfieldGeo, outfieldMat);
+        outfieldMesh.rotation.x = -Math.PI / 2;
+        outfieldMesh.receiveShadow = true;
+        scene.add(outfieldMesh);
+
+        // Mowed Grass Stripes
+        for (let i = -80; i <= 80; i += 14) {
+            const stripe = new THREE.Mesh(
+                new THREE.PlaneGeometry(180, 7),
+                new THREE.MeshStandardMaterial({ color: 0x16a34a, roughness: 0.85 })
+            );
+            stripe.rotation.x = -Math.PI / 2;
+            stripe.position.set(0, 0.01, i - 55);
+            stripe.receiveShadow = true;
+            scene.add(stripe);
+        }
+
+        // Infield Dirt Diamond
+        const dirtMat = new THREE.MeshStandardMaterial({ color: 0xb45309, roughness: 0.92 });
+        const infieldDiamond = new THREE.Mesh(new THREE.PlaneGeometry(29, 29), dirtMat);
+        infieldDiamond.rotation.x = -Math.PI / 2;
+        infieldDiamond.rotation.z = Math.PI / 4;
+        infieldDiamond.position.set(0, 0.02, -19.5);
+        infieldDiamond.receiveShadow = true;
+        scene.add(infieldDiamond);
+
+        // Pitcher's Mound & Home Dirt Circle
+        const moundMesh = new THREE.Mesh(new THREE.CylinderGeometry(2.4, 3.2, 0.35, 24), dirtMat);
+        moundMesh.position.set(0, 0.16, -18.44);
+        moundMesh.receiveShadow = true;
+        scene.add(moundMesh);
+
+        const homeCircle = new THREE.Mesh(new THREE.CircleGeometry(3.2, 24), dirtMat);
+        homeCircle.rotation.x = -Math.PI / 2;
+        homeCircle.position.set(0, 0.025, 0);
+        scene.add(homeCircle);
+
+        // Bases (1B, 2B, 3B, Home)
+        const baseMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
+        [
+            [19.4, 0.05, -19.4],
+            [0, 0.05, -38.8],
+            [-19.4, 0.05, -19.4]
+        ].forEach(([bx, by, bz]) => {
+            const bMesh = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.1, 0.9), baseMat);
+            bMesh.rotation.y = Math.PI / 4;
+            bMesh.position.set(bx, by, bz);
+            scene.add(bMesh);
+        });
+
+        // Outfield Wall & Stadium Light Towers + Crowd Blocks
+        const wallArc = new THREE.Mesh(
+            new THREE.CylinderGeometry(112, 112, 3.6, 64, 1, true, Math.PI * 0.72, Math.PI * 0.56),
+            new THREE.MeshStandardMaterial({ color: 0x1e3a8a, side: THREE.DoubleSide })
+        );
+        wallArc.position.set(0, 1.8, 0);
+        scene.add(wallArc);
+
+        const yellowPad = new THREE.Mesh(
+            new THREE.CylinderGeometry(111.9, 111.9, 0.35, 64, 1, true, Math.PI * 0.72, Math.PI * 0.56),
+            new THREE.MeshBasicMaterial({ color: 0xfacc15, side: THREE.DoubleSide })
+        );
+        yellowPad.position.set(0, 3.65, 0);
+        scene.add(yellowPad);
+
+        [[-52, -98], [52, -98], [-82, -62], [82, -62]].forEach(([tx, tz]) => {
+            const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.7, 34), new THREE.MeshStandardMaterial({ color: 0x64748b }));
+            pole.position.set(tx, 17, tz);
+            scene.add(pole);
+
+            const flood = new THREE.PointLight(0xe0f2fe, 0, 160);
+            flood.position.set(tx, 33, tz);
+            scene.add(flood);
+            stadiumFloodlights.push(flood);
+        });
+
+        // Crowd Fans for Wave Animation
+        const crowdBlocks = [];
+        let crowdWaveTimer = 0;
+        const crowdColors = [0xef4444, 0x3b82f6, 0xfacc15, 0xffffff, 0x10b981];
+        for (let i = 0; i < 60; i++) {
+            const ang = Math.PI * 0.75 + (i / 60) * Math.PI * 0.5;
+            const rad = 116 + (i % 3) * 2.2;
+            const fan = new THREE.Mesh(
+                new THREE.BoxGeometry(1.4, 1.8, 1.4),
+                new THREE.MeshStandardMaterial({ color: crowdColors[i % crowdColors.length] })
+            );
+            const baseY = 4.5 + (i % 3) * 1.4;
+            fan.position.set(Math.sin(ang) * rad, baseY, Math.cos(ang) * rad);
+            fan.userData = { baseY, phase: i * 0.28 };
+            scene.add(fan);
+            crowdBlocks.push(fan);
+        }
+
+        // Articulated Player Builder
+        const jerseyMaterials = [];
+        function createArticulatedPlayer(shirtHex, skinHex = 0xf1c27d) {
+            const root = new THREE.Group();
+            const jerseyMat = new THREE.MeshStandardMaterial({ color: shirtHex });
+            jerseyMaterials.push(jerseyMat);
+            const pantsMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc });
+            const skinMat = new THREE.MeshStandardMaterial({ color: skinHex });
+
+            const torsoPivot = new THREE.Group();
+            torsoPivot.position.y = 1.05;
+            root.add(torsoPivot);
+
+            const chest = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.68, 0.3), jerseyMat);
+            chest.castShadow = true;
+            torsoPivot.add(chest);
+
+            const head = new THREE.Mesh(new THREE.SphereGeometry(0.2, 16, 16), skinMat);
+            head.position.y = 0.52;
+            torsoPivot.add(head);
+
+            const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.215, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.55), jerseyMat);
+            helmet.position.y = 0.54;
+            torsoPivot.add(helmet);
+
+            const rightArmPivot = new THREE.Group();
+            rightArmPivot.position.set(0.34, 0.25, 0);
+            const rArm = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.55, 0.16), jerseyMat);
+            rArm.position.y = -0.22;
+            rightArmPivot.add(rArm);
+            torsoPivot.add(rightArmPivot);
+
+            const leftLegPivot = new THREE.Group();
+            leftLegPivot.position.set(-0.14, 0.72, 0);
+            const lLeg = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.72, 0.2), pantsMat);
+            lLeg.position.y = -0.35;
+            leftLegPivot.add(lLeg);
+            root.add(leftLegPivot);
+
+            const rLeg = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.72, 0.2), pantsMat);
+            rLeg.position.set(0.14, 0.37, 0);
+            root.add(rLeg);
+
+            root.userData = { torsoPivot, rightArmPivot, leftLegPivot };
+            return root;
+        }
+
+        const PITCHER_POS = new THREE.Vector3(0, 1.45, -18.44);
+        const pitcherMesh = createArticulatedPlayer(0xdc2626);
+        pitcherMesh.position.set(0, 0.35, -18.44);
+        scene.add(pitcherMesh);
+
+        const batterMesh = createArticulatedPlayer(0x1d4ed8);
+        batterMesh.position.set(-0.85, 0.03, 0.15);
+        batterMesh.rotation.y = Math.PI / 2;
+        scene.add(batterMesh);
+
+        // Bat Pivot attached to Batter
+        const batPivot = new THREE.Group();
+        batPivot.position.set(0.25, 0.2, 0.15);
+        const batMesh = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.038, 0.024, 1.05, 12),
+            new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.4 })
+        );
+        batMesh.position.y = 0.48;
+        batPivot.add(batMesh);
+        batterMesh.userData.torsoPivot.add(batPivot);
+
+        // AI Fielders
+        const fielders = [];
+        [
+            [-14, -24], [14, -24], [-9, -36], [9, -36],
+            [-36, -68], [0, -82], [36, -68]
+        ].forEach(([fx, fz]) => {
+            const fMesh = createArticulatedPlayer(0x991b1b);
+            fMesh.position.set(fx, 0.02, fz);
+            fMesh.userData.homePos = new THREE.Vector3(fx, 0.02, fz);
+            scene.add(fMesh);
+            fielders.push(fMesh);
+        });
+
+        // Baseball & Trail Ribbon
+        const ballMesh = new THREE.Mesh(
+            new THREE.SphereGeometry(0.085, 16, 16),
+            new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.35 })
+        );
+        ballMesh.castShadow = true;
+        ballMesh.position.copy(PITCHER_POS);
+        scene.add(ballMesh);
+
+        const TRAIL_MAX = 26;
+        const trailPositions = new Float32Array(TRAIL_MAX * 3);
+        const trailGeo = new THREE.BufferGeometry();
+        trailGeo.setAttribute('position', new THREE.BufferAttribute(trailPositions, 3));
+        const trailMat = new THREE.LineBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.85 });
+        const trailLine = new THREE.Line(trailGeo, trailMat);
+        scene.add(trailLine);
+
+        function updateTrail(pos, reset = false, hexColor = 0x38bdf8) {
+            trailMat.color.setHex(hexColor);
+            if (reset) {
+                for (let i = 0; i < TRAIL_MAX; i++) {
+                    trailPositions[i * 3] = pos.x;
+                    trailPositions[i * 3 + 1] = pos.y;
+                    trailPositions[i * 3 + 2] = pos.z;
+                }
+            } else {
+                for (let i = TRAIL_MAX - 1; i > 0; i--) {
+                    trailPositions[i * 3] = trailPositions[(i - 1) * 3];
+                    trailPositions[i * 3 + 1] = trailPositions[(i - 1) * 3 + 1];
+                    trailPositions[i * 3 + 2] = trailPositions[(i - 1) * 3 + 2];
+                }
+                trailPositions[0] = pos.x;
+                trailPositions[1] = pos.y;
+                trailPositions[2] = pos.z;
+            }
+            trailGeo.attributes.position.needsUpdate = true;
+        }
+
+        // Strike Zone Dimensions
+        const szWidth = 0.62;
+        const szHeight = 0.72;
+        const szCenterY = 0.92;
+
+        // =========================================================================
+        // 4. CORE GAME STATE & PITCH CATALOG
+        // =========================================================================
+        const PITCH_CATALOG = [
+            { name: '四縫線速球 4-Seam', speedKmh: 132, duration: 0.78, breakX: 0.01, breakY: 0.04, hex: 0xef4444 },
+            { name: '大曲球 Curveball', speedKmh: 112, duration: 0.92, breakX: -0.14, breakY: -0.25, hex: 0x38bdf8 },
+            { name: '銳利滑球 Slider', speedKmh: 121, duration: 0.85, breakX: 0.22, breakY: -0.11, hex: 0xa855f7 },
+            { name: '變速球 Changeup', speedKmh: 115, duration: 0.90, breakX: -0.09, breakY: -0.15, hex: 0x10b981 }
+        ];
+
+        const game = {
+            screen: 'LOBBY',
+            mode: 'FULL_GAME',
+            derbyRule: 'TIME',
+            phase: 'IDLE',
+            timer: 0,
+            cameraMode: 0,
+            inning: 8,
+            isTopInning: false,
+            awayScore: 2,
+            homeScore: 1,
+            balls: 0,
+            strikes: 0,
+            outs: 0,
+            bases: [false, false, false],
+            batterIdx: 0,
+            pitchCount: 0,
+            stamina: 100,
+            selectedPitchIdx: 0,
+            currentPitch: PITCH_CATALOG[0],
+            isStrikeZonePitch: true,
+            pitchTargetWorld: new THREE.Vector3(0, szCenterY, 0),
+            pciNorm: { x: 0, y: 0 },
+            pitchAimNorm: { x: 0, y: 0 },
+            swingInitiated: false,
+            swingElapsed: 0,
+            ballVel: new THREE.Vector3(),
+            ballBounces: 0,
+            isFlyBall: false,
+            lastHitTelemetry: { velo: 160, angle: 25, dist: 120 },
+            replayTimer: 0,
+            derbyScore: 0,
+            derbyHrs: 0,
+            derbyCombo: 0,
+            derbyTimeLeft: 60,
+            derbyOutsLeft: 10,
+            fireballActive: false
+        };
+
+        // =========================================================================
+        // 5. TEAM CUSTOMIZATION & QUEST / EVENT HELPERS
+        // =========================================================================
+        function setJerseyColor(hex) {
+            profile.jerseyColor = hex;
+            batterMesh.userData.torsoPivot.children[0].material.color.set(hex);
+            batterMesh.userData.torsoPivot.children[2].material.color.set(hex);
+            saveProfile();
+        }
+
+        document.getElementById('input-team-name').addEventListener('change', (e) => {
+            const val = e.target.value.trim();
+            if (val) {
+                profile.teamName = val;
+                saveProfile();
+                showToast(`✓ 隊名已更新為【${val}】`);
+            }
+        });
+
+        function trackProgress(questId, eventId, delta = 1) {
+            if (questId) {
+                const q = profile.quests.find(item => item.id === questId);
+                if (q && !q.claimed) q.progress += delta;
+            }
+            if (eventId) {
+                const ev = profile.events.find(item => item.id === eventId);
+                if (ev && !ev.claimed) ev.progress += delta;
+            }
+            saveProfile();
+        }
+
+        function claimQuest(questId) {
+            const q = profile.quests.find(item => item.id === questId);
+            if (!q || q.claimed || q.progress < q.target) return;
+            q.claimed = true;
+            const mult = profile.isVip ? 2 : 1;
+            profile.coins += q.rewardCoins * mult;
+            profile.diamonds += q.rewardDiamonds * mult;
+            saveProfile();
+            showToast(`🎁 領取任務獎勵：+${q.rewardCoins * mult} 🪙 / +${q.rewardDiamonds * mult} 💎`);
+        }
+
+        function claimEvent(eventId) {
+            const ev = profile.events.find(item => item.id === eventId);
+            if (!ev || ev.claimed || ev.progress < ev.target) return;
+            ev.claimed = true;
+            profile.diamonds += ev.rewardDiamonds;
+            saveProfile();
+            showToast(`🎉 領取活動大獎：+${ev.rewardDiamonds} 💎`);
+        }
+
+        // =========================================================================
+        // 6. 100-PLAYER UPGRADE, LINEUP CONFIG, SHOP SCOUTING & CHECKOUT SYSTEM
+        // =========================================================================
+        let selectedInspectorPlayerId = 1;
+
+        function switchLobbyTab(tabName, shopSub = null) {
+            document.querySelectorAll('.lobby-tab').forEach(el => el.classList.add('hidden'));
+            document.getElementById(`tab-${tabName}`).classList.remove('hidden');
+
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                const active = btn.dataset.tab === tabName;
+                btn.className = active
+                    ? 'nav-btn px-3 sm:px-5 py-2.5 rounded-xl font-black text-xs sm:text-sm bg-amber-500 text-slate-950 transition cursor-pointer whitespace-nowrap'
+                    : 'nav-btn px-3 sm:px-5 py-2.5 rounded-xl font-bold text-xs sm:text-sm text-slate-300 hover:bg-slate-800 transition cursor-pointer whitespace-nowrap relative';
+            });
+            if (tabName === 'shop' && shopSub) switchShopSubTab(shopSub);
+            updateLobbyUI();
+        }
+
+        function switchShopSubTab(sub) {
+            document.querySelectorAll('.shop-sub-view').forEach(el => el.classList.add('hidden'));
+            document.getElementById(`shop-sub-${sub}`).classList.remove('hidden');
+            document.querySelectorAll('.shop-sub-btn').forEach(btn => {
+                const active = btn.dataset.shoptab === sub;
+                btn.className = active
+                    ? 'shop-sub-btn px-3 py-1.5 rounded-xl bg-amber-500 text-slate-950 font-black text-xs cursor-pointer'
+                    : 'shop-sub-btn px-3 py-1.5 rounded-xl bg-slate-800 text-slate-300 font-bold text-xs cursor-pointer';
+            });
+        }
+
+        function selectDerbyRule(rule) {
+            game.derbyRule = rule;
+            document.getElementById('derby-opt-time').className = rule === 'TIME'
+                ? 'py-2 px-3 rounded-xl bg-amber-500 text-slate-950 font-black text-xs cursor-pointer border border-amber-300'
+                : 'py-2 px-3 rounded-xl bg-slate-800/90 text-slate-300 font-bold text-xs cursor-pointer border border-slate-700';
+            document.getElementById('derby-opt-outs').className = rule === 'OUTS'
+                ? 'py-2 px-3 rounded-xl bg-amber-500 text-slate-950 font-black text-xs cursor-pointer border border-amber-300'
+                : 'py-2 px-3 rounded-xl bg-slate-800/90 text-slate-300 font-bold text-xs cursor-pointer border border-slate-700';
+        }
+
+        // Player Upgrade (Lv.1 -> Lv.20)
+        function upgradePlayerLevel(playerId, times = 1) {
+            const p = getPlayerComputedStats(playerId);
+            if (!p.owned) return showToast('尚未簽約此選手，請先前往商店招募或簽約！');
+            if (p.level >= 20) return showToast('此選手已達最高等級 Lv.20！');
+
+            let upgradesDone = 0;
+            for (let i = 0; i < times; i++) {
+                const curLv = profile.ownedPlayers[playerId].level;
+                if (curLv >= 20) break;
+                const coinCost = curLv * 350;
+                const shardCost = curLv >= 10 ? 5 : 0;
+                if (profile.coins < coinCost) {
+                    if (upgradesDone === 0) showToast(`金幣不足 (需要 🪙${coinCost})`);
+                    break;
+                }
+                if (profile.shards < shardCost) {
+                    if (upgradesDone === 0) showToast(`突破碎片不足 (Lv.10以上每次需 🧩${shardCost})`);
+                    break;
+                }
+                profile.coins -= coinCost;
+                profile.shards -= shardCost;
+                profile.ownedPlayers[playerId].level++;
+                upgradesDone++;
+            }
+
+            if (upgradesDone > 0) {
+                trackProgress('q_upgrade', null, upgradesDone);
+                saveProfile();
+                showToast(`⬆️ ${p.name} 強化成功！目前 Lv.${profile.ownedPlayers[playerId].level}`);
+            }
+        }
+
+        // Lineup Assignment & Reordering
+        function assignBatterToSlot(slotIdx, playerId) {
+            const pid = Number(playerId);
+            if (!profile.ownedPlayers[pid]) return;
+            // Swap if already in another batting slot
+            const existingIdx = profile.lineupBatterIds.indexOf(pid);
+            if (existingIdx !== -1 && existingIdx !== slotIdx) {
+                const temp = profile.lineupBatterIds[slotIdx];
+                profile.lineupBatterIds[slotIdx] = pid;
+                profile.lineupBatterIds[existingIdx] = temp;
+            } else {
+                profile.lineupBatterIds[slotIdx] = pid;
+            }
+            saveProfile();
+        }
+
+        function moveBatterSlot(slotIdx, dir) {
+            const targetIdx = slotIdx + dir;
+            if (targetIdx < 0 || targetIdx >= 9) return;
+            const temp = profile.lineupBatterIds[slotIdx];
+            profile.lineupBatterIds[slotIdx] = profile.lineupBatterIds[targetIdx];
+            profile.lineupBatterIds[targetIdx] = temp;
+            saveProfile();
+        }
+
+        function assignStartingPitcher(playerId) {
+            const pid = Number(playerId);
+            if (!profile.ownedPlayers[pid]) return;
+            profile.startingPitcherId = pid;
+            saveProfile();
+        }
+
+        function autoBestLineup() {
+            const ownedIds = Object.keys(profile.ownedPlayers).map(Number);
+            const batters = ownedIds
+                .map(id => getPlayerComputedStats(id))
+                .filter(p => p.pos !== 'SP')
+                .sort((a, b) => b.ovr - a.ovr);
+            const pitchers = ownedIds
+                .map(id => getPlayerComputedStats(id))
+                .filter(p => p.pos === 'SP')
+                .sort((a, b) => b.ovr - a.ovr);
+
+            if (batters.length >= 9) {
+                profile.lineupBatterIds = batters.slice(0, 9).map(b => b.id);
+            }
+            if (pitchers.length >= 1) {
+                profile.startingPitcherId = pitchers[0].id;
+            }
+            saveProfile();
+            showToast('⚡ 已自動部署全隊最強先發陣容！');
+        }
+
+        // Store: Gacha Scouting & Direct Signing
+        function scoutPlayers(count, currency, totalCost) {
+            if (currency === 'coins' && profile.coins < totalCost) return showToast('金幣不足！');
+            if (currency === 'diamonds' && profile.diamonds < totalCost) return showToast('鑽石不足！');
+
+            if (currency === 'coins') profile.coins -= totalCost;
+            else profile.diamonds -= totalCost;
+
+            const isDiamondPack = currency === 'diamonds';
+            const results = [];
+
+            for (let i = 0; i < count; i++) {
+                let roll = Math.random();
+                let targetRarity = 'N';
+                if (isDiamondPack) {
+                    if (i === count - 1 && count === 10) {
+                        targetRarity = roll < 0.25 ? 'SSR' : 'SR'; // Guaranteed SR+ on 10x
+                    } else {
+                        targetRarity = roll < 0.12 ? 'SSR' : roll < 0.50 ? 'SR' : 'R';
+                    }
+                } else {
+                    targetRarity = roll < 0.03 ? 'SSR' : roll < 0.20 ? 'SR' : roll < 0.55 ? 'R' : 'N';
+                }
+
+                const candidates = PLAYER_CATALOG_100.filter(p => p.rarity === targetRarity);
+                const picked = candidates[Math.floor(Math.random() * candidates.length)];
+                const alreadyOwned = !!profile.ownedPlayers[picked.id];
+
+                if (alreadyOwned) {
+                    const shardGain = picked.rarity === 'SSR' ? 40 : picked.rarity === 'SR' ? 20 : picked.rarity === 'R' ? 10 : 5;
+                    profile.shards += shardGain;
+                    results.push({ player: picked, isNew: false, shardGain });
+                } else {
+                    profile.ownedPlayers[picked.id] = { level: 1 };
+                    results.push({ player: picked, isNew: true, shardGain: 0 });
+                }
+            }
+
+            // Update collector event
+            const ownedTotal = Object.keys(profile.ownedPlayers).length;
+            const colEv = profile.events.find(e => e.id === 'ev_collector');
+            if (colEv) colEv.progress = ownedTotal;
+
+            trackProgress('q_scout', null, count);
+            saveProfile();
+            showScoutRevealModal(results);
+        }
+
+        function redeemSSRWithShards() {
+            if (profile.shards < 150) return showToast('碎片不足 150 🧩！繼續招募重複球員即可獲得碎片');
+            profile.shards -= 150;
+            const unownedSSR = PLAYER_CATALOG_100.filter(p => p.rarity === 'SSR' && !profile.ownedPlayers[p.id]);
+            const pool = unownedSSR.length > 0 ? unownedSSR : PLAYER_CATALOG_100.filter(p => p.rarity === 'SSR');
+            const picked = pool[Math.floor(Math.random() * pool.length)];
+            const isNew = !profile.ownedPlayers[picked.id];
+            if (isNew) profile.ownedPlayers[picked.id] = { level: 1 };
+            else profile.shards += 50;
+
+            saveProfile();
+            showScoutRevealModal([{ player: picked, isNew, shardGain: isNew ? 0 : 50 }]);
+        }
+
+        function directBuyPlayer(playerId) {
+            const p = PLAYER_CATALOG_100.find(item => item.id === playerId);
+            if (!p || profile.ownedPlayers[playerId]) return;
+
+            const isDia = p.rarity === 'SSR' || p.rarity === 'SR';
+            const cost = p.rarity === 'SSR' ? 450 : p.rarity === 'SR' ? 180 : p.rarity === 'R' ? 2200 : 1000;
+
+            if (isDia) {
+                if (profile.diamonds < cost) return showToast(`鑽石不足 (需要 💎${cost})`);
+                profile.diamonds -= cost;
+            } else {
+                if (profile.coins < cost) return showToast(`金幣不足 (需要 🪙${cost})`);
+                profile.coins -= cost;
+            }
+
+            profile.ownedPlayers[playerId] = { level: 1 };
+            const colEv = profile.events.find(e => e.id === 'ev_collector');
+            if (colEv) colEv.progress = Object.keys(profile.ownedPlayers).length;
+
+            saveProfile();
+            showToast(`✍️ 成功簽約 ${p.rarity} 選手【${p.name}】！`);
+        }
+
+        function showScoutRevealModal(results) {
+            const container = document.getElementById('scout-cards-container');
+            container.innerHTML = results.map((res, i) => `
+                <div style="animation-delay: ${i * 60}ms" class="card-reveal-anim rounded-2xl p-3 border-2 rarity-${res.player.rarity} flex flex-col justify-between text-center">
+                    <div>
+                        <div class="flex justify-between items-center text-[10px] font-black">
+                            <span class="px-1.5 py-0.5 rounded bg-black/40 text-amber-300">${res.player.rarity}</span>
+                            <span class="text-slate-300">#${res.player.jerseyNo} ${res.player.pos}</span>
+                        </div>
+                        <div class="text-2xl my-2">${res.player.pos === 'SP' ? '🔥' : '⚾'}</div>
+                        <div class="font-black text-sm text-white">${res.player.name}</div>
+                        <div class="text-[10px] text-cyan-300 mt-0.5">${res.player.trait}</div>
+                    </div>
+                    <div class="mt-2 pt-1.5 border-t border-white/10 text-[10px] font-black">
+                        ${res.isNew
+                            ? '<span class="text-emerald-400">★ NEW 新簽約！</span>'
+                            : `<span class="text-purple-300">重複 → +${res.shardGain} 🧩</span>`}
+                    </div>
+                </div>
+            `).join('');
+            document.getElementById('scout-reveal-modal').classList.remove('hidden');
+        }
+
+        function closeScoutReveal() {
+            document.getElementById('scout-reveal-modal').classList.add('hidden');
+        }
+
+        // Enhanced Checkout, Promo Code & Receipt Flow
+        let pendingOrder = null;
+        let promoDiscountApplied = false;
+        let selectedPayMethod = 'CREDIT';
+
+        function openCheckout(catalogType, itemId) {
+            const list = catalogType === 'PLAN' ? SUBSCRIPTION_PLANS : DIAMOND_PACKS;
+            const item = list.find(i => i.id === itemId);
+            if (!item) return;
+
+            pendingOrder = { ...item, catalogType };
+            promoDiscountApplied = false;
+            document.getElementById('promo-code-input').value = '';
+            document.getElementById('promo-status-text').classList.add('hidden');
+
+            document.getElementById('pay-item-tag').textContent = item.tag;
+            document.getElementById('pay-item-name').textContent = item.name;
+            document.getElementById('pay-item-desc').textContent = item.desc;
+            document.getElementById('pay-item-price').textContent = `NT$ ${item.price.toLocaleString()}`;
+            document.getElementById('payment-modal').classList.remove('hidden');
+        }
+
+        function closePaymentModal() {
+            document.getElementById('payment-modal').classList.add('hidden');
+            pendingOrder = null;
+        }
+
+        function applyPromoCode() {
+            if (!pendingOrder) return;
+            const code = document.getElementById('promo-code-input').value.trim().toUpperCase();
+            if (code === 'BASEBALL2026' || code === 'VIP888' || code === 'MVP') {
+                promoDiscountApplied = true;
+                const discounted = Math.round(pendingOrder.price * 0.9);
+                document.getElementById('pay-item-price').textContent = `NT$ ${discounted.toLocaleString()}`;
+                document.getElementById('promo-status-text').classList.remove('hidden');
+            } else {
+                showToast('折扣碼無效 (可輸入 BASEBALL2026 享9折)');
+            }
+        }
+
+        function selectPayMethod(method) {
+            selectedPayMethod = method;
+            document.querySelectorAll('.pay-method-btn').forEach(btn => {
+                const active = btn.dataset.pay === method;
+                btn.className = active
+                    ? 'pay-method-btn py-2.5 px-2 rounded-xl bg-cyan-500/20 border-2 border-cyan-400 text-xs font-bold text-white cursor-pointer'
+                    : 'pay-method-btn py-2.5 px-2 rounded-xl bg-slate-900 border border-slate-700 text-xs font-bold text-slate-300 cursor-pointer';
+            });
+            document.getElementById('pay-detail-credit').classList.toggle('hidden', method !== 'CREDIT');
+            document.getElementById('pay-detail-alt').classList.toggle('hidden', method === 'CREDIT');
+        }
+
+        function processSimulatedPayment() {
+            if (!pendingOrder) return;
+            const btn = document.getElementById('confirm-pay-btn');
+            btn.textContent = '🔒 金流安全授權驗證中...';
+            btn.disabled = true;
+
+            setTimeout(() => {
+                const finalPrice = promoDiscountApplied ? Math.round(pendingOrder.price * 0.9) : pendingOrder.price;
+                profile.diamonds += pendingOrder.diamonds;
+                profile.coins += pendingOrder.coins;
+                profile.shards += pendingOrder.shards;
+                if (pendingOrder.isVip) {
+                    profile.isVip = true;
+                    profile.activePlanName = pendingOrder.name;
+                }
+
+                // Grant SSR Players if included in plan
+                const grantedNames = [];
+                if (pendingOrder.grantSSR > 0) {
+                    const ssrPool = PLAYER_CATALOG_100.filter(p => p.rarity === 'SSR');
+                    for (let k = 0; k < pendingOrder.grantSSR; k++) {
+                        const unowned = ssrPool.filter(p => !profile.ownedPlayers[p.id]);
+                        const pick = (unowned.length > 0 ? unowned : ssrPool)[Math.floor(Math.random() * (unowned.length || ssrPool.length))];
+                        if (!profile.ownedPlayers[pick.id]) profile.ownedPlayers[pick.id] = { level: 1 };
+                        else profile.shards += 40;
+                        grantedNames.push(pick.name);
+                    }
+                }
+
+                const txId = 'TX' + Date.now().toString().slice(-8);
+                const payLabels = { CREDIT: '信用卡', LINEPAY: 'LINE Pay', APPLEPAY: 'Apple Pay', CVS: '超商代碼' };
+                const orderRecord = {
+                    txId,
+                    name: pendingOrder.name,
+                    amount: finalPrice,
+                    method: payLabels[selectedPayMethod] || '信用卡',
+                    time: new Date().toLocaleString('zh-TW')
+                };
+                profile.orders.unshift(orderRecord);
+                saveProfile();
+
+                btn.textContent = '確認付款並立即發貨';
+                btn.disabled = false;
+                closePaymentModal();
+
+                // Show Electronic Receipt
+                document.getElementById('receipt-details').innerHTML = `
+                    <div class="flex justify-between"><span class="text-slate-400">交易編號:</span><strong class="sport-font text-cyan-300">${txId}</strong></div>
+                    <div class="flex justify-between"><span class="text-slate-400">購買方案:</span><strong class="text-white">${orderRecord.name}</strong></div>
+                    <div class="flex justify-between"><span class="text-slate-400">付款方式:</span><strong class="text-slate-200">${orderRecord.method}</strong></div>
+                    <div class="flex justify-between"><span class="text-slate-400">實付金額:</span><strong class="sport-font text-amber-400">NT$ ${finalPrice.toLocaleString()}</strong></div>
+                    <div class="pt-2 border-t border-slate-800 text-emerald-400 font-bold">
+                        發放內容: +${pendingOrder.diamonds} 💎 • +${pendingOrder.coins.toLocaleString()} 🪙 • +${pendingOrder.shards} 🧩
+                        ${grantedNames.length ? `<br>★ 加贈 SSR 傳奇球星: ${grantedNames.join('、')}` : ''}
+                    </div>
+                `;
+                document.getElementById('receipt-modal').classList.remove('hidden');
+            }, 700);
+        }
+
+        function openOrderHistoryModal() {
+            const listEl = document.getElementById('order-history-list');
+            if (!profile.orders || profile.orders.length === 0) {
+                listEl.innerHTML = '<div class="text-center text-slate-400 py-8">目前尚無購買紀錄</div>';
+            } else {
+                listEl.innerHTML = profile.orders.map(o => `
+                    <div class="bg-slate-900/90 p-3 rounded-xl border border-slate-800 flex justify-between items-center">
+                        <div>
+                            <div class="font-black text-white">${o.name}</div>
+                            <div class="text-[11px] text-slate-400">${o.time} • ${o.method} • ${o.txId}</div>
+                        </div>
+                        <div class="sport-font font-black text-amber-400">NT$ ${o.amount}</div>
+                    </div>
+                `).join('');
+            }
+            document.getElementById('history-modal').classList.remove('hidden');
+        }
+
+        function renderRosterTab() {
+            const ownedIds = Object.keys(profile.ownedPlayers).map(Number);
+            const ownedBatters = ownedIds.map(id => getPlayerComputedStats(id)).filter(p => p.pos !== 'SP');
+            const ownedPitchers = ownedIds.map(id => getPlayerComputedStats(id)).filter(p => p.pos === 'SP');
+
+            // Render Starting 9 Batters + 1 Starting Pitcher
+            let totalOvr = 0;
+            const batterRows = profile.lineupBatterIds.map((pid, idx) => {
+                const p = getPlayerComputedStats(pid);
+                totalOvr += p.ovr;
+                const optionsHtml = ownedBatters.map(b =>
+                    `<option value="${b.id}" ${b.id === pid ? 'selected' : ''}>[${b.rarity}] ${b.name} (${b.pos} • OVR ${b.ovr})</option>`
+                ).join('');
+
+                return `
+                    <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-2 flex items-center justify-between gap-1.5">
+                        <span class="px-2 py-0.5 rounded bg-blue-600/30 text-blue-300 text-[11px] font-black whitespace-nowrap">${idx + 1}棒</span>
+                        <select onchange="assignBatterToSlot(${idx}, this.value)" class="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-xs font-bold text-white truncate">
+                            ${optionsHtml}
+                        </select>
+                        <div class="flex items-center gap-0.5">
+                            <button onclick="moveBatterSlot(${idx}, -1)" class="px-1.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-[10px] cursor-pointer" title="棒次上移">▲</button>
+                            <button onclick="moveBatterSlot(${idx}, 1)" class="px-1.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-[10px] cursor-pointer" title="棒次下移">▼</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            const sp = getPlayerComputedStats(profile.startingPitcherId);
+            totalOvr += sp.ovr;
+            const spOptions = ownedPitchers.map(pt =>
+                `<option value="${pt.id}" ${pt.id === sp.id ? 'selected' : ''}>[${pt.rarity}] ${pt.name} (SP • OVR ${pt.ovr})</option>`
+            ).join('');
+
+            document.getElementById('starting-lineup-list').innerHTML = `
+                ${batterRows}
+                <div class="mt-2 pt-2 border-t border-slate-800 bg-rose-950/30 border border-rose-500/30 rounded-xl p-2 flex items-center justify-between gap-2">
+                    <span class="px-2 py-0.5 rounded bg-rose-600/40 text-rose-200 text-[11px] font-black whitespace-nowrap">先發投手</span>
+                    <select onchange="assignStartingPitcher(this.value)" class="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-xs font-bold text-white">
+                        ${spOptions}
+                    </select>
+                </div>
+            `;
+            document.getElementById('lineup-avg-ovr').textContent = `先發均戰力: ${Math.round(totalOvr / 10)}`;
+
+            // Render Selected Player Upgrade Inspector
+            const sel = getPlayerComputedStats(selectedInspectorPlayerId);
+            const nextCoinCost = sel.level * 350;
+            const nextShardCost = sel.level >= 10 ? 5 : 0;
+            document.getElementById('player-upgrade-inspector').innerHTML = `
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <span class="px-2 py-0.5 rounded text-[11px] font-black bg-amber-500 text-slate-950">${sel.rarity}</span>
+                            <span class="font-black text-base text-white">${sel.name}</span>
+                            <span class="text-xs text-slate-400">#${sel.jerseyNo} • ${sel.pos} • ${sel.handedness}</span>
+                            <span class="px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 sport-font text-xs font-black">Lv.${sel.level}/20</span>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-4 mt-1.5 text-xs">
+                            <span>${sel.pos === 'SP' ? '球威' : '力量'}: <strong class="sport-font text-rose-400">${sel.power}</strong></span>
+                            <span>${sel.pos === 'SP' ? '控球' : '巧打'}: <strong class="sport-font text-cyan-400">${sel.contact}</strong></span>
+                            <span>${sel.pos === 'SP' ? '體力' : '速度'}: <strong class="sport-font text-emerald-400">${sel.speed}</strong></span>
+                            <span class="text-amber-300 font-bold">特性: ${sel.trait}</span>
+                        </div>
+                    </div>
+                    <div>
+                        ${sel.owned ? (sel.level < 20 ? `
+                            <div class="flex items-center gap-1.5">
+                                <button onclick="upgradePlayerLevel(${sel.id}, 1)" class="px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs cursor-pointer">
+                                    強化 +1 (🪙${nextCoinCost}${nextShardCost ? ` + 🧩${nextShardCost}` : ''})
+                                </button>
+                                <button onclick="upgradePlayerLevel(${sel.id}, 5)" class="px-2.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-amber-400/40 text-amber-300 font-bold text-xs cursor-pointer">
+                                    連升5級
+                                </button>
+                            </div>
+                        ` : '<span class="px-3 py-1.5 rounded-xl bg-emerald-500/20 text-emerald-300 text-xs font-black">★ 已達滿級 Lv.20</span>')
+                        : `<button onclick="directBuyPlayer(${sel.id})" class="px-3.5 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black text-xs cursor-pointer">前往簽約此選手</button>`}
+                    </div>
+                </div>
+            `;
+
+            // Render Filterable 100-Player Pool
+            const search = (document.getElementById('roster-search').value || '').trim().toLowerCase();
+            const rarityFilter = document.getElementById('roster-filter-rarity').value;
+            const ownedFilter = document.getElementById('roster-filter-owned').value;
+
+            const filtered = PLAYER_CATALOG_100
+                .map(p => getPlayerComputedStats(p.id))
+                .filter(p => {
+                    if (rarityFilter !== 'ALL' && p.rarity !== rarityFilter) return false;
+                    if (ownedFilter === 'OWNED' && !p.owned) return false;
+                    if (ownedFilter === 'UNOWNED' && p.owned) return false;
+                    if (search && !p.name.toLowerCase().includes(search) && !String(p.jerseyNo).includes(search)) return false;
+                    return true;
+                });
+
+            document.getElementById('player-pool-grid').innerHTML = filtered.map(p => `
+                <div onclick="selectedInspectorPlayerId = ${p.id}; renderRosterTab();" class="rounded-xl p-2.5 border cursor-pointer transition rarity-${p.rarity} ${p.id === selectedInspectorPlayerId ? 'ring-2 ring-white' : ''} ${!p.owned ? 'opacity-55' : ''}">
+                    <div class="flex justify-between items-center text-[10px] font-black">
+                        <span class="px-1.5 py-0.5 rounded bg-black/40 text-amber-300">${p.rarity}</span>
+                        <span class="text-slate-300">${p.pos} • ${p.owned ? `Lv.${p.level}` : '未擁有'}</span>
+                    </div>
+                    <div class="font-black text-xs sm:text-sm text-white mt-1 truncate">${p.name}</div>
+                    <div class="flex justify-between items-center mt-1 text-[11px] text-slate-300">
+                        <span>OVR <strong class="sport-font text-amber-300">${p.ovr}</strong></span>
+                        <span class="text-[10px] text-cyan-300">${p.trait}</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderMarketGrid() {
+            const search = (document.getElementById('market-search').value || '').trim().toLowerCase();
+            const rarity = document.getElementById('market-rarity').value;
+            const posFilter = document.getElementById('market-pos').value;
+
+            const ownedCount = Object.keys(profile.ownedPlayers).length;
+            document.getElementById('market-owned-label').textContent = `${ownedCount} / 100`;
+
+            const list = PLAYER_CATALOG_100.filter(p => {
+                if (rarity !== 'ALL' && p.rarity !== rarity) return false;
+                if (posFilter === 'PITCHER' && p.pos !== 'SP') return false;
+                if (posFilter === 'BATTER' && p.pos === 'SP') return false;
+                if (search && !p.name.toLowerCase().includes(search)) return false;
+                return true;
+            });
+
+            document.getElementById('market-players-grid').innerHTML = list.map(p => {
+                const owned = !!profile.ownedPlayers[p.id];
+                const isDia = p.rarity === 'SSR' || p.rarity === 'SR';
+                const cost = p.rarity === 'SSR' ? 450 : p.rarity === 'SR' ? 180 : p.rarity === 'R' ? 2200 : 1000;
+                return `
+                    <div class="rounded-2xl p-3 border rarity-${p.rarity} flex flex-col justify-between">
+                        <div>
+                            <div class="flex justify-between items-center text-[10px] font-black">
+                                <span class="px-1.5 py-0.5 rounded bg-black/50 text-amber-300">${p.rarity}</span>
+                                <span class="text-slate-300">#${p.jerseyNo} ${p.pos}</span>
+                            </div>
+                            <div class="font-black text-sm text-white mt-1">${p.name}</div>
+                            <div class="text-[10px] text-cyan-300">${p.trait} (${p.handedness})</div>
+                            <div class="grid grid-cols-3 gap-1 mt-2 text-center bg-black/30 rounded-lg p-1 text-[10px]">
+                                <div><span class="text-slate-400 block">${p.pos === 'SP' ? '球威' : '力量'}</span><strong class="sport-font text-rose-300">${p.basePower}</strong></div>
+                                <div><span class="text-slate-400 block">${p.pos === 'SP' ? '控球' : '巧打'}</span><strong class="sport-font text-cyan-300">${p.baseContact}</strong></div>
+                                <div><span class="text-slate-400 block">${p.pos === 'SP' ? '體力' : '速度'}</span><strong class="sport-font text-emerald-300">${p.baseSpeed}</strong></div>
+                            </div>
+                        </div>
+                        <button onclick="directBuyPlayer(${p.id})" ${owned ? 'disabled' : ''} class="mt-2.5 w-full py-1.5 rounded-xl font-black text-xs cursor-pointer ${owned ? 'bg-slate-800 text-emerald-400' : 'bg-amber-500 hover:bg-amber-400 text-slate-950'}">
+                            ${owned ? '✓ 已在陣中' : `簽約 ${isDia ? '💎' : '🪙'}${cost.toLocaleString()}`}
+                        </button>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function updateLobbyUI() {
+            profile = ensureValidProfile(profile);
+            document.getElementById('lobby-team-name').textContent = profile.teamName;
+            document.getElementById('input-team-name').value = profile.teamName;
+            document.getElementById('lobby-jersey-swatch').style.backgroundColor = profile.jerseyColor;
+
+            // Header Account Info
+            document.getElementById('header-username').textContent = profile.isGuest ? '遊客模式 (點擊登入)' : profile.username;
+            document.getElementById('header-user-sub').textContent = profile.isGuest ? '註冊領 200💎 並雲端存檔' : (profile.activePlanName || '已綁定球團帳號');
+
+            document.getElementById('ui-shards').textContent = profile.shards.toLocaleString();
+            document.getElementById('ui-coins').textContent = profile.coins.toLocaleString();
+            document.getElementById('ui-diamonds').textContent = profile.diamonds.toLocaleString();
+            document.getElementById('shop-shards-display').textContent = profile.shards.toLocaleString();
+            document.getElementById('shop-coins-display').textContent = profile.coins.toLocaleString();
+            document.getElementById('shop-diamonds-display').textContent = profile.diamonds.toLocaleString();
+            document.getElementById('scout-shard-count').textContent = profile.shards.toLocaleString();
+
+            const ownedCount = Object.keys(profile.ownedPlayers).length;
+            document.getElementById('owned-count-mini').textContent = `${ownedCount}/100`;
+
+            const vipBadge = document.getElementById('vip-badge');
+            vipBadge.classList.toggle('hidden', !profile.isVip);
+
+            // Team OVR from active 9 batters + SP
+            const lineupStats = [...profile.lineupBatterIds, profile.startingPitcherId].map(id => getPlayerComputedStats(id));
+            const avgStat = Math.round(lineupStats.reduce((acc, p) => acc + p.ovr, 0) / lineupStats.length);
+            document.getElementById('team-ovr').textContent = avgStat;
+
+            renderRosterTab();
+            renderMarketGrid();
+
+            // Render Subscription Plans
+            document.getElementById('subscription-plans-grid').innerHTML = SUBSCRIPTION_PLANS.map(pl => `
+                <div class="glass-card rounded-2xl p-4 flex flex-col justify-between border-2 ${pl.id === 'plan_vip_season' ? 'border-amber-400 bg-amber-950/20' : 'border-cyan-500/30'}">
+                    <div>
+                        <span class="px-2 py-0.5 rounded bg-amber-400 text-slate-950 text-[10px] font-black">${pl.tag}</span>
+                        <div class="font-black text-base text-white mt-1.5">${pl.name}</div>
+                        <div class="text-xs text-slate-300 mt-1 leading-relaxed">${pl.desc}</div>
+                    </div>
+                    <button onclick="openCheckout('PLAN', '${pl.id}')" class="mt-3.5 w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-slate-950 font-black text-xs cursor-pointer shadow">
+                        ${pl.priceText} 立即開通方案
+                    </button>
+                </div>
+            `).join('');
+
+            // Render 6 Diamond Top-up Packs
+            document.getElementById('diamond-packs-grid').innerHTML = DIAMOND_PACKS.map(pk => `
+                <div class="glass-card rounded-2xl p-3.5 flex flex-col justify-between border border-cyan-400/25">
+                    <div>
+                        <div class="flex justify-between items-center">
+                            <span class="font-black text-sm text-white">${pk.name}</span>
+                            <span class="px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 text-[10px] font-black">${pk.tag}</span>
+                        </div>
+                        <div class="text-xs text-slate-300 mt-1.5">獲得 💎 ${pk.diamonds.toLocaleString()} + 🪙 ${pk.coins.toLocaleString()} + 🧩 ${pk.shards}</div>
+                    </div>
+                    <button onclick="openCheckout('PACK', '${pk.id}')" class="mt-3 w-full py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-black text-xs cursor-pointer">
+                        ${pk.priceText} 立即儲值
+                    </button>
+                </div>
+            `).join('');
+
+            // Render Quests
+            let hasClaimable = false;
+            document.getElementById('quests-list').innerHTML = profile.quests.map(q => {
+                const done = q.progress >= q.target;
+                if (done && !q.claimed) hasClaimable = true;
+                const pct = Math.min(100, Math.round((q.progress / q.target) * 100));
+                return `
+                    <div class="glass-card rounded-2xl p-3.5 flex flex-wrap items-center justify-between gap-3">
+                        <div class="flex-1 min-w-[200px]">
+                            <div class="font-bold text-sm text-white">${q.title}</div>
+                            <div class="w-full h-2 bg-slate-800 rounded-full overflow-hidden mt-2">
+                                <div class="h-full bg-amber-400" style="width: ${pct}%"></div>
+                            </div>
+                            <div class="text-[11px] text-slate-400 mt-1">進度: ${Math.min(q.progress, q.target)} / ${q.target} • 獎勵: 🪙${q.rewardCoins} + 💎${q.rewardDiamonds} ${profile.isVip ? '(VIP 2X!)' : ''}</div>
+                        </div>
+                        <button onclick="claimQuest('${q.id}')" ${!done || q.claimed ? 'disabled' : ''} class="px-4 py-2 rounded-xl font-black text-xs cursor-pointer ${q.claimed ? 'bg-slate-800 text-slate-500' : done ? 'bg-amber-400 text-slate-950 animate-pulse' : 'bg-slate-800 text-slate-400'}">
+                            ${q.claimed ? '已領取' : done ? '領取獎勵' : '進行中'}
+                        </button>
+                    </div>
+                `;
+            }).join('');
+            document.getElementById('quest-dot').classList.toggle('hidden', !hasClaimable);
+
+            // Render Events & Gear & Stats
+            document.getElementById('events-list').innerHTML = profile.events.map(ev => {
+                const done = ev.progress >= ev.target;
+                return `
+                    <div class="glass-card rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3 border-l-4 border-l-rose-500">
+                        <div>
+                            <div class="font-black text-base text-white">${ev.title}</div>
+                            <div class="text-xs text-slate-300 mt-0.5">${ev.desc}</div>
+                            <div class="text-xs text-amber-400 font-bold mt-1.5">進度: ${Math.min(ev.progress, ev.target)} / ${ev.target} • 大獎: 💎 ${ev.rewardDiamonds}</div>
+                        </div>
+                        <button onclick="claimEvent('${ev.id}')" ${!done || ev.claimed ? 'disabled' : ''} class="px-4 py-2.5 rounded-xl font-black text-xs cursor-pointer ${ev.claimed ? 'bg-slate-800 text-slate-500' : done ? 'bg-rose-500 text-white' : 'bg-slate-800 text-slate-400'}">
+                            ${ev.claimed ? '已領取' : done ? '領取活動大獎' : '挑戰中'}
+                        </button>
+                    </div>
+                `;
+            }).join('');
+
+            document.getElementById('shop-gear-grid').innerHTML = SHOP_GEAR.map(g => {
+                const owned = profile.ownedGear.includes(g.id);
+                return `
+                    <div class="glass-card rounded-2xl p-3.5 flex flex-col justify-between">
+                        <div>
+                            <div class="text-2xl mb-1">${g.icon}</div>
+                            <div class="font-black text-sm text-white">${g.name}</div>
+                            <div class="text-xs text-slate-300 mt-1">${g.desc}</div>
+                        </div>
+                        <button onclick="buyGear('${g.id}')" ${owned ? 'disabled' : ''} class="mt-3 w-full py-2 rounded-xl font-black text-xs cursor-pointer ${owned ? 'bg-slate-800 text-emerald-400' : 'bg-amber-500 hover:bg-amber-400 text-slate-950'}">
+                            ${owned ? '✓ 已裝備生效' : `${g.currency === 'coins' ? '🪙' : '💎'} ${g.price.toLocaleString()}`}
+                        </button>
+                    </div>
+                `;
+            }).join('');
+
+            const avg = profile.stats.atBats > 0 ? (profile.stats.hits / profile.stats.atBats).toFixed(3).replace(/^0/, '') : '.000';
+            document.getElementById('career-avg').textContent = avg;
+            document.getElementById('career-hr').textContent = profile.stats.hrs;
+            document.getElementById('career-max-dist').textContent = `${profile.stats.maxHrDist} m`;
+            document.getElementById('career-derby-high').textContent = profile.stats.derbyHigh;
+
+            const board = [
+                { name: '台中洲際砲手', score: 2850 },
+                { name: '台南府城獅王', score: 2200 },
+                { name: profile.teamName + ' (你)', score: Math.max(profile.stats.derbyHigh, profile.stats.hrs * 250) },
+                { name: '桃園暴力猿', score: 1450 },
+                { name: '高雄港都鷹', score: 980 }
+            ].sort((a, b) => b.score - a.score);
+
+            document.getElementById('leaderboard-list').innerHTML = board.map((row, idx) => `
+                <div class="flex items-center justify-between px-3 py-2 rounded-xl ${row.name.includes('(你)') ? 'bg-amber-500/20 border border-amber-400/40' : 'bg-slate-900/70'}">
+                    <div class="flex items-center gap-2.5">
+                        <span class="sport-font font-black text-sm ${idx === 0 ? 'text-yellow-400' : 'text-slate-400'}">#${idx + 1}</span>
+                        <span class="text-xs sm:text-sm font-bold text-white">${row.name}</span>
+                    </div>
+                    <span class="sport-font font-black text-sm text-cyan-300">${row.score.toLocaleString()} PTS</span>
+                </div>
+            `).join('');
+        }
+
+        function buyGear(gearId) {
+            const gear = SHOP_GEAR.find(g => g.id === gearId);
+            if (!gear || profile.ownedGear.includes(gearId)) return;
+            if (gear.currency === 'coins') {
+                if (profile.coins < gear.price) return showToast('金幣不足！');
+                profile.coins -= gear.price;
+            } else {
+                if (profile.diamonds < gear.price) return showToast('鑽石不足！');
+                profile.diamonds -= gear.price;
+            }
+            profile.ownedGear.push(gearId);
+            saveProfile();
+            showToast(`⚔️ 已裝備【${gear.name}】！`);
+        }
+
+        // =========================================================================
+        // 7. MATCH HUD & GAMEPLAY INTEGRATION WITH ACTIVE STARTING LINEUP
+        // =========================================================================
+        // 7. MATCH INITIALIZATION & 2-WAY HUD SYNC
+        // =========================================================================
+        function startMatch(mode) {
+            audio.init();
+            game.screen = 'PLAYING';
+            game.mode = mode;
+            game.inning = 8;
+            game.isTopInning = false; // Start Bottom 8th Batting!
+            game.awayScore = 2;
+            game.homeScore = 1;
+            game.balls = 0;
+            game.strikes = 0;
+            game.outs = 0;
+            game.bases = [false, false, false];
+            game.batterIdx = 0;
+            game.pitchCount = 0;
+            game.stamina = 100;
+
+            // Derby Init
+            game.derbyScore = 0;
+            game.derbyHrs = 0;
+            game.derbyCombo = 0;
+            game.derbyTimeLeft = 60;
+            game.derbyOutsLeft = 10;
+            game.fireballActive = false;
+
+            document.getElementById('lobby-screen').classList.add('hidden');
+            document.getElementById('gameplay-hud').classList.remove('hidden');
+            document.getElementById('summary-modal').classList.add('hidden');
+
+            document.getElementById('fullgame-scorebug').classList.toggle('hidden', mode === 'DERBY');
+            document.getElementById('derby-scorebug').classList.toggle('hidden', mode !== 'DERBY');
+            document.getElementById('baserunning-panel').classList.toggle('hidden', mode === 'DERBY');
+
+            syncMatchHUD();
+            audio.playWalkUpOrgan();
+            prepareNextPitch();
+        }
+
+        function returnToLobby() {
+            game.screen = 'LOBBY';
+            game.phase = 'IDLE';
+            document.getElementById('summary-modal').classList.add('hidden');
+            document.getElementById('gameplay-hud').classList.add('hidden');
+            document.getElementById('lobby-screen').classList.remove('hidden');
+            updateLobbyUI();
+        }
+
+        function rematch() {
+            startMatch(game.mode);
+        }
+
+        function syncMatchHUD() {
+            if (game.mode === 'DERBY') {
+                document.getElementById('derby-score').textContent = game.derbyScore.toLocaleString();
+                document.getElementById('derby-hrs').textContent = game.derbyHrs;
+                document.getElementById('derby-combo').textContent = `${game.derbyCombo}x`;
+                document.getElementById('derby-limit-label').textContent = game.derbyRule === 'TIME' ? '剩餘時間' : '剩餘出局';
+                document.getElementById('derby-limit-val').textContent = game.derbyRule === 'TIME' ? `${Math.ceil(game.derbyTimeLeft)}s` : `${game.derbyOutsLeft} OUT`;
+                document.getElementById('fireball-badge').classList.toggle('hidden', !game.fireballActive);
+                document.getElementById('zone-pad').classList.toggle('fireball-active', game.fireballActive);
+            } else {
+                document.getElementById('hud-home-name').textContent = profile.teamName;
+                document.getElementById('hud-away-score').textContent = game.awayScore;
+                document.getElementById('hud-home-score').textContent = game.homeScore;
+                document.getElementById('hud-inning-half').textContent = game.isTopInning ? '▲' : '▼';
+                document.getElementById('hud-inning-num').textContent = `${game.inning}局`;
+                document.getElementById('hud-balls').textContent = game.balls;
+                document.getElementById('hud-strikes').textContent = game.strikes;
+
+                document.getElementById('hud-out-1').className = `w-2.5 h-2.5 rounded-full border ${game.outs >= 1 ? 'bg-amber-400 border-amber-200' : 'bg-slate-700 border-slate-500'}`;
+                document.getElementById('hud-out-2').className = `w-2.5 h-2.5 rounded-full border ${game.outs >= 2 ? 'bg-amber-400 border-amber-200' : 'bg-slate-700 border-slate-500'}`;
+
+                [0, 1, 2].forEach(i => {
+                    const baseEl = document.getElementById(`hud-base-${i + 1}`);
+                    if (baseEl) {
+                        baseEl.className = `w-3 h-3 rotate-45 border transition ${game.bases[i] ? 'bg-amber-400 border-amber-200 shadow-[0_0_8px_#facc15]' : 'border-white/40 bg-white/15'}`;
+                    }
+                });
+
+                const activeBatterId = profile.lineupBatterIds[game.batterIdx % 9];
+                const batter = getPlayerComputedStats(activeBatterId);
+                const sp = getPlayerComputedStats(profile.startingPitcherId);
+                document.getElementById('hud-role-badge').textContent = game.isTopInning ? '守備投球中' : '進攻打擊中';
+                document.getElementById('hud-active-player').textContent = game.isTopInning
+                    ? `投手 • ${sp.name} (Lv.${sp.level})`
+                    : `第${(game.batterIdx % 9) + 1}棒 • ${batter.name} (Lv.${batter.level})`;
+            }
+
+            // Toggle Batting vs Pitching Controls
+            const isPitchingRole = game.mode === 'FULL_GAME' && game.isTopInning;
+            document.getElementById('batting-controls-row').classList.toggle('hidden', isPitchingRole);
+            document.getElementById('pitching-controls-row').classList.toggle('hidden', !isPitchingRole);
+            document.getElementById('pci-cursor').classList.toggle('hidden', isPitchingRole);
+            document.getElementById('pitch-target-cursor').classList.toggle('hidden', !isPitchingRole);
+            document.getElementById('zone-instruction').textContent = isPitchingRole
+                ? '點擊九宮格設定進壘點，按「投球」出手'
+                : '拖曳或方向鍵移動 PCI 瞄準框，抓準時機揮棒！';
+
+            // Stamina Bar Update
+            const stamPct = Math.max(15, Math.round(game.stamina));
+            document.getElementById('pitcher-stamina-bar').style.width = `${stamPct}%`;
+            document.getElementById('pitcher-stamina-bar').className = `h-full transition-all ${stamPct > 55 ? 'bg-emerald-400' : stamPct > 30 ? 'bg-amber-400' : 'bg-rose-500'}`;
+            document.getElementById('pitcher-stamina-text').textContent = `${stamPct}%`;
+        }
+
+        // =========================================================================
+        // 8. STRIKE ZONE INTERACTION (PCI AIMING & PITCH 9-GRID TARGETING)
+        // =========================================================================
+        const zonePad = document.getElementById('zone-pad');
+        const pciCursor = document.getElementById('pci-cursor');
+        const pitchTargetCursor = document.getElementById('pitch-target-cursor');
+
+        function updateZoneCursorFromClientXY(clientX, clientY) {
+            const rect = zonePad.getBoundingClientRect();
+            const nx = THREE.MathUtils.clamp(((clientX - rect.left) / rect.width) * 2 - 1, -0.92, 0.92);
+            const ny = THREE.MathUtils.clamp(((clientY - rect.top) / rect.height) * 2 - 1, -0.92, 0.92);
+
+            if (game.mode === 'FULL_GAME' && game.isTopInning) {
+                game.pitchAimNorm = { x: nx, y: ny };
+                pitchTargetCursor.style.left = `${(nx + 1) * 50}%`;
+                pitchTargetCursor.style.top = `${(ny + 1) * 50}%`;
+            } else {
+                game.pciNorm = { x: nx, y: ny };
+                pciCursor.style.left = `${(nx + 1) * 50}%`;
+                pciCursor.style.top = `${(ny + 1) * 50}%`;
+            }
+        }
+
+        let isDraggingZone = false;
+        zonePad.addEventListener('pointerdown', (e) => {
+            isDraggingZone = true;
+            updateZoneCursorFromClientXY(e.clientX, e.clientY);
+        });
+        window.addEventListener('pointermove', (e) => {
+            if (isDraggingZone) updateZoneCursorFromClientXY(e.clientX, e.clientY);
+        });
+        window.addEventListener('pointerup', () => { isDraggingZone = false; });
+
+        function selectPitchType(idx) {
+            game.selectedPitchIdx = idx;
+            document.querySelectorAll('.pitch-type-btn').forEach(btn => {
+                const active = Number(btn.dataset.pitch) === idx;
+                btn.className = active
+                    ? 'pitch-type-btn px-2.5 py-2 rounded-xl bg-rose-600 text-white text-xs font-black cursor-pointer'
+                    : 'pitch-type-btn px-2.5 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-bold cursor-pointer';
+            });
+        }
+
+        // =========================================================================
+        // 9. PITCHING, PCI HITTING, BASERUNNING & INNING SWITCHING
+        // =========================================================================
+        function showCallout(title, sub = '', colorClass = 'text-white') {
+            const box = document.getElementById('hud-callout');
+            const tEl = document.getElementById('hud-callout-title');
+            const sEl = document.getElementById('hud-callout-sub');
+            tEl.textContent = title;
+            tEl.className = `sport-font text-4xl sm:text-6xl font-black italic tracking-wider drop-shadow-[0_6px_14px_rgba(0,0,0,0.9)] ${colorClass}`;
+            sEl.textContent = sub;
+            sEl.classList.toggle('hidden', !sub);
+            box.classList.remove('hidden', 'banner-animate');
+            void box.offsetWidth;
+            box.classList.add('banner-animate');
+        }
+
+        function showToast(text) {
+            const pill = document.getElementById('hud-timing-pill');
+            pill.textContent = text;
+            pill.classList.replace('opacity-0', 'opacity-100');
+            setTimeout(() => pill.classList.replace('opacity-100', 'opacity-0'), 1800);
+        }
+
+        function prepareNextPitch() {
+            if (game.phase === 'GAMEOVER' || game.screen !== 'PLAYING') return;
+            document.getElementById('hud-callout').classList.add('hidden');
+            document.getElementById('replay-overlay').classList.add('hidden');
+            document.getElementById('zone-ball-dot').classList.add('hidden');
+
+            // Reset fielders & batter stance
+            fielders.forEach(f => f.position.copy(f.userData.homePos));
+            batPivot.rotation.set(0.35, 0, -0.45);
+            batterMesh.userData.torsoPivot.rotation.y = 0;
+            pitcherMesh.userData.leftLegPivot.rotation.x = 0;
+            pitcherMesh.userData.rightArmPivot.rotation.x = 0;
+
+            game.swingInitiated = false;
+            game.swingElapsed = 0;
+            game.ballBounces = 0;
+            game.isFlyBall = false;
+
+            ballMesh.position.copy(PITCHER_POS);
+            updateTrail(PITCHER_POS, true);
+            syncMatchHUD();
+
+            if (game.mode === 'FULL_GAME' && game.isTopInning) {
+                // Player is Pitching: wait for player to click PITCH
+                game.phase = 'AWAIT_PITCH';
+                document.getElementById('hud-pitch-name').textContent = '請選擇球種並投球';
+                document.getElementById('hud-pitch-speed').textContent = '-- KM/H';
+            } else {
+                // AI Pitcher throws automatically
+                launchAIPitch();
+            }
+        }
+
+        function launchAIPitch() {
+            const pitch = game.mode === 'DERBY'
+                ? PITCH_CATALOG[0] // Derby serves hittable fastballs
+                : PITCH_CATALOG[Math.floor(Math.random() * PITCH_CATALOG.length)];
+            game.currentPitch = pitch;
+
+            const throwStrike = game.mode === 'DERBY' ? true : Math.random() < 0.85;
+            game.isStrikeZonePitch = throwStrike;
+
+            let nx, ny;
+            if (throwStrike) {
+                nx = (Math.random() - 0.5) * 1.15;
+                ny = (Math.random() - 0.5) * 1.15;
+            } else {
+                nx = (Math.random() > 0.5 ? 1 : -1) * (1.1 + Math.random() * 0.25);
+                ny = (Math.random() - 0.5) * 1.2;
+            }
+
+            game.pitchTargetWorld.set(nx * (szWidth * 0.5), szCenterY - ny * (szHeight * 0.5), 0);
+            document.getElementById('hud-pitch-name').textContent = pitch.name;
+            document.getElementById('hud-pitch-speed').textContent = `${pitch.speedKmh} KM/H`;
+
+            game.phase = 'WINDUP';
+            game.timer = 0;
+        }
+
+        // Player Executes Pitch (Top Inning) using Starting Pitcher Stats
+        function executePlayerPitch() {
+            audio.init();
+            if (game.phase !== 'AWAIT_PITCH') return;
+
+            const pitch = PITCH_CATALOG[game.selectedPitchIdx];
+            const sp = getPlayerComputedStats(profile.startingPitcherId);
+            game.currentPitch = pitch;
+            game.pitchCount++;
+            const stamDrain = Math.max(1.8, 3.6 - (sp.speed - 75) * 0.04);
+            game.stamina = Math.max(15, 100 - game.pitchCount * stamDrain);
+
+            const controlBonus = sp.contact / 100;
+            const scatter = ((100 - game.stamina) / 100) * 0.55 * Math.max(0.35, 1.2 - controlBonus * 0.5);
+            const finalNx = game.pitchAimNorm.x + (Math.random() - 0.5) * scatter;
+            const finalNy = game.pitchAimNorm.y + (Math.random() - 0.5) * scatter;
+
+            game.isStrikeZonePitch = Math.abs(finalNx) <= 1.02 && Math.abs(finalNy) <= 1.02;
+            game.pitchTargetWorld.set(finalNx * (szWidth * 0.5), szCenterY - finalNy * (szHeight * 0.5), 0);
+
+            const stuffBonus = Math.round((sp.power - 80) * 0.25);
+            const effectiveSpeed = Math.round((pitch.speedKmh + stuffBonus) * (0.86 + (game.stamina / 100) * 0.14));
+            document.getElementById('hud-pitch-name').textContent = pitch.name;
+            document.getElementById('hud-pitch-speed').textContent = `${effectiveSpeed} KM/H`;
+
+            syncMatchHUD();
+            game.phase = 'WINDUP';
+            game.timer = 0;
+        }
+
+        // Player Executes Swing using Active Lineup Batter Stats
+        function executePlayerSwing() {
+            audio.init();
+            if (game.mode === 'FULL_GAME' && game.isTopInning) return;
+            if (game.swingInitiated) return;
+            if (game.phase !== 'PITCHING' && game.phase !== 'WINDUP') return;
+
+            game.swingInitiated = true;
+            game.swingElapsed = 0;
+
+            const btn = document.getElementById('hud-swing-btn');
+            btn.classList.add('pressed');
+            setTimeout(() => btn.classList.remove('pressed'), 120);
+
+            if (game.phase === 'PITCHING') {
+                const progress = game.timer / game.currentPitch.duration;
+                const timingDiff = progress - 0.94;
+                const absTiming = Math.abs(timingDiff);
+
+                const ballNormX = ballMesh.position.x / (szWidth * 0.5);
+                const ballNormY = (szCenterY - ballMesh.position.y) / (szHeight * 0.5);
+                const pciDist = Math.hypot(ballNormX - game.pciNorm.x, ballNormY - game.pciNorm.y);
+
+                const activeBatterId = profile.lineupBatterIds[game.batterIdx % 9];
+                const batter = getPlayerComputedStats(activeBatterId);
+                const contactRadius = 0.65 + (batter.contact / 100) * 0.30;
+
+                if (absTiming <= 0.28 && pciDist <= contactRadius) {
+                    launchBattedBall(timingDiff, absTiming, pciDist, contactRadius, batter.power);
+                } else if (absTiming > 0.28) {
+                    showToast(timingDiff < 0 ? '揮棒過早！' : '揮棒過慢！');
+                } else {
+                    showToast('PCI 瞄準偏移揮空！');
+                }
+            }
+        }
+
+        function launchBattedBall(timingDiff, absTiming, pciDist, contactRadius, batterPower) {
+            game.phase = 'HIT_FLIGHT';
+            const timingQuality = Math.max(0, 1 - absTiming / 0.28);
+            const pciQuality = Math.max(0, 1 - pciDist / contactRadius);
+            const totalQuality = Math.min(1, (timingQuality * 0.48 + pciQuality * 0.52) * 1.18);
+
+            audio.playBatCrack(totalQuality);
+
+            const sprayAngle = THREE.MathUtils.clamp(timingDiff * 3.2, -0.82, 0.82);
+            const powerMult = 0.95 + (batterPower / 100) * 0.36 + (game.fireballActive ? 0.16 : 0);
+            const exitSpeedMs = (28 + totalQuality * 27) * powerMult;
+            const launchDeg = 12 + pciQuality * 23 + (Math.random() - 0.3) * 6;
+            const launchRad = THREE.MathUtils.degToRad(launchDeg);
+
+            game.isFlyBall = launchDeg > 19;
+            const horiz = exitSpeedMs * Math.cos(launchRad);
+            game.ballVel.set(
+                Math.sin(sprayAngle) * horiz,
+                exitSpeedMs * Math.sin(launchRad),
+                -Math.cos(sprayAngle) * horiz
+            );
+
+            // Store Telemetry
+            const estVeloKmh = Math.round(exitSpeedMs * 3.6);
+            const estDistM = Math.round((exitSpeedMs * exitSpeedMs * Math.sin(2 * launchRad)) / 9.81 * 1.15);
+            game.lastHitTelemetry = { velo: estVeloKmh, angle: Math.round(launchDeg), dist: estDistM };
+
+            if (totalQuality > 0.78) showToast('🔥 咬中甜蜜點！PERFECT BARREL!');
+            else if (totalQuality > 0.48) showToast('紮實擊球！SOLID CONTACT');
+            else showToast('擠壓擊球 OFF-CENTER');
+        }
+        // Manual Baserunning & Stealing using Active Batter Speed
+        function commandBaserunners(cmd) {
+            if (game.mode !== 'FULL_GAME' || game.isTopInning) return;
+            const hasRunners = game.bases.some(Boolean);
+            if (!hasRunners) {
+                showToast('壘上目前沒有跑者');
+                return;
+            }
+            if (cmd === 'STEAL') {
+                if (game.phase === 'WINDUP' || game.phase === 'PITCHING') {
+                    const activeBatterId = profile.lineupBatterIds[game.batterIdx % 9];
+                    const leadRunnerSpeed = getPlayerComputedStats(activeBatterId).speed;
+                    const success = Math.random() < (0.45 + (leadRunnerSpeed / 100) * 0.42);
+                    if (success) {
+                        advanceAllRunners(1);
+                        showToast('⚡ 盜壘成功 SAFE!');
+                        trackProgress('q_steal', null, 1);
+                    } else {
+                        // Out on base
+                        for (let i = 2; i >= 0; i--) {
+                            if (game.bases[i]) { game.bases[i] = false; break; }
+                        }
+                        game.outs++;
+                        showToast('❌ 盜壘阻殺出局 OUT!');
+                        syncMatchHUD();
+                        checkHalfInningOrGameEnd();
+                    }
+                } else {
+                    showToast('投手啟動投球時可發動盜壘！');
+                }
+            } else if (cmd === 'ADVANCE' || cmd === 'TAGUP') {
+                if (game.phase === 'HIT_FLIGHT') {
+                    advanceAllRunners(1);
+                    showToast(cmd === 'TAGUP' ? '🏷️ 觸壘起跑推進！' : '🏃 全體跑者積極進壘！');
+                }
+            } else if (cmd === 'RETREAT') {
+                showToast('↩️ 跑者回壘警戒');
+            }
+        }
+
+        function advanceAllRunners(basesCount, includeBatter = false) {
+            let runs = 0;
+            for (let b = 2; b >= 0; b--) {
+                if (game.bases[b]) {
+                    game.bases[b] = false;
+                    const target = b + basesCount;
+                    if (target >= 3) runs++;
+                    else game.bases[target] = true;
+                }
+            }
+            if (includeBatter) {
+                if (basesCount >= 4) runs++;
+                else game.bases[basesCount - 1] = true;
+            }
+            if (game.isTopInning) game.awayScore += runs;
+            else game.homeScore += runs;
+            syncMatchHUD();
+        }
+
+        function recordStrike(called = false) {
+            game.strikes++;
+            if (game.strikes >= 3) {
+                game.outs++;
+                game.balls = 0;
+                game.strikes = 0;
+                game.batterIdx++;
+                audio.speak('Strike out!');
+                showCallout('三振出局 STRIKEOUT!', called ? '主審拉弓好球三振' : '揮棒落空三振', 'text-rose-500');
+                if (game.isTopInning) trackProgress('q_so', 'ev_ace', 1);
+                if (game.mode === 'DERBY') {
+                    game.derbyOutsLeft--;
+                    game.derbyCombo = 0;
+                    game.fireballActive = false;
+                }
+            } else {
+                audio.speak('Strike!');
+                showCallout(`好球 STRIKE ${game.strikes}`, called ? '精準進壘好球' : '揮棒落空', 'text-rose-400');
+            }
+            syncMatchHUD();
+            transitionAfterPlay();
+        }
+
+        function recordBall() {
+            game.balls++;
+            if (game.balls >= 4) {
+                game.balls = 0;
+                game.strikes = 0;
+                game.batterIdx++;
+                audio.speak('Ball four, take your base!');
+                showCallout('四壞球保送 WALK', '免費保送上壘', 'text-emerald-400');
+                if (game.bases[0] && game.bases[1] && game.bases[2]) {
+                    if (game.isTopInning) game.awayScore++; else game.homeScore++;
+                } else if (game.bases[0] && game.bases[1]) game.bases[2] = true;
+                else if (game.bases[0]) game.bases[1] = true;
+                game.bases[0] = true;
+            } else {
+                audio.speak('Ball!');
+                showCallout(`壞球 BALL ${game.balls}`, '偏離好球帶', 'text-emerald-400');
+            }
+            syncMatchHUD();
+            transitionAfterPlay();
+        }
+
+        function checkHalfInningOrGameEnd() {
+            if (game.mode === 'DERBY') {
+                const ended = (game.derbyRule === 'TIME' && game.derbyTimeLeft <= 0) ||
+                              (game.derbyRule === 'OUTS' && game.derbyOutsLeft <= 0);
+                if (ended) {
+                    finishEntireMatch();
+                    return true;
+                }
+                return false;
+            }
+
+            // Walk-off win in Bottom 9th or later!
+            if (!game.isTopInning && game.inning >= 9 && game.homeScore > game.awayScore) {
+                finishEntireMatch();
+                return true;
+            }
+
+            // 3 Outs -> Half-Inning Switch!
+            if (game.outs >= 3) {
+                if (!game.isTopInning && game.inning >= 9 && game.homeScore !== game.awayScore) {
+                    finishEntireMatch();
+                    return true;
+                }
+                // Switch Top/Bottom Inning
+                game.outs = 0;
+                game.balls = 0;
+                game.strikes = 0;
+                game.bases = [false, false, false];
+                if (game.isTopInning) {
+                    game.isTopInning = false;
+                } else {
+                    game.isTopInning = true;
+                    game.inning++;
+                }
+                showCallout('攻守交換！', game.isTopInning ? `第 ${game.inning} 局上半 • 輪到你投球！` : `第 ${game.inning} 局下半 • 輪到你打擊！`, 'text-cyan-300');
+                syncMatchHUD();
+            }
+            return false;
+        }
+
+        function transitionAfterPlay() {
+            if (checkHalfInningOrGameEnd()) return;
+            game.phase = 'TRANSITION';
+            setTimeout(() => {
+                if (game.screen === 'PLAYING' && game.phase !== 'GAMEOVER') {
+                    prepareNextPitch();
+                }
+            }, 2100);
+        }
+
+        function finishEntireMatch() {
+            game.phase = 'GAMEOVER';
+            const sumModal = document.getElementById('summary-modal');
+
+            if (game.mode === 'DERBY') {
+                trackProgress('q_derby', null, 1);
+                if (game.derbyScore > profile.stats.derbyHigh) profile.stats.derbyHigh = game.derbyScore;
+                const coinReward = 400 + game.derbyHrs * 120;
+                const diaReward = 10 + game.derbyHrs * 3;
+                profile.coins += coinReward * (profile.isVip ? 2 : 1);
+                profile.diamonds += diaReward * (profile.isVip ? 2 : 1);
+                saveProfile();
+
+                document.getElementById('sum-badge').textContent = '全壘打大賽結算';
+                document.getElementById('sum-title').textContent = `轟出 ${game.derbyHrs} 支全壘打！`;
+                document.getElementById('sum-desc').textContent = '驚人的長打火力震撼全場！';
+                document.getElementById('sum-scoreline').textContent = `總積分: ${game.derbyScore.toLocaleString()} PTS`;
+                document.getElementById('sum-rewards').textContent = `獲得獎勵: +${coinReward} 金幣 • +${diaReward} 鑽石`;
+            } else {
+                const won = game.homeScore > game.awayScore;
+                if (won) profile.stats.wins++;
+                const coinReward = won ? 800 : 350;
+                const diaReward = won ? 20 : 5;
+                profile.coins += coinReward * (profile.isVip ? 2 : 1);
+                profile.diamonds += diaReward * (profile.isVip ? 2 : 1);
+                saveProfile();
+
+                document.getElementById('sum-badge').textContent = '比賽正式結束';
+                document.getElementById('sum-title').textContent = won ? '🏆 逆轉勝利！' : '惜敗對手';
+                document.getElementById('sum-desc').textContent = won ? '全隊上下一心拿下精彩勝利，球迷瘋狂歡呼！' : '調整打線與球具裝備，下一場討回來！';
+                document.getElementById('sum-scoreline').textContent = `客隊 ${game.awayScore} : ${game.homeScore} ${profile.teamName}`;
+                document.getElementById('sum-rewards').textContent = `獲得獎勵: +${coinReward} 金幣 • +${diaReward} 鑽石`;
+            }
+
+            setTimeout(() => sumModal.classList.remove('hidden'), 1400);
+        }
+
+        function skipReplay() {
+            if (game.phase === 'REPLAY') {
+                document.getElementById('replay-overlay').classList.add('hidden');
+                transitionAfterPlay();
+            }
+        }
+
+        // =========================================================================
+        // 10. MAIN ANIMATION & PHYSICS LOOP
+        // =========================================================================
+        const clock = new THREE.Clock();
+        const camPos = new THREE.Vector3();
+        const camLook = new THREE.Vector3();
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const rawDt = Math.min(clock.getDelta(), 0.05);
+            const dt = game.phase === 'REPLAY' ? rawDt * 0.28 : rawDt; // Slow-motion during HR replay!
+
+            // Crowd Wave Animation
+            if (crowdWaveTimer > 0) {
+                crowdWaveTimer -= rawDt;
+                crowdBlocks.forEach(fan => {
+                    fan.position.y = fan.userData.baseY + Math.max(0, Math.sin(clock.elapsedTime * 9 - fan.userData.phase)) * 1.4;
+                });
+            } else {
+                crowdBlocks.forEach(fan => { fan.position.y = fan.userData.baseY; });
+            }
+
+            // Derby Countdown Timer
+            if (game.screen === 'PLAYING' && game.mode === 'DERBY' && game.derbyRule === 'TIME' && game.phase !== 'GAMEOVER') {
+                game.derbyTimeLeft = Math.max(0, game.derbyTimeLeft - rawDt);
+                document.getElementById('derby-limit-val').textContent = `${Math.ceil(game.derbyTimeLeft)}s`;
+                if (game.derbyTimeLeft <= 0 && game.phase !== 'HIT_FLIGHT' && game.phase !== 'REPLAY') {
+                    finishEntireMatch();
+                }
+            }
+
+            // Articulated Batter Swing & Torso Rotation
+            if (game.swingInitiated && game.swingElapsed < 0.36) {
+                game.swingElapsed += dt;
+                const t = Math.min(game.swingElapsed / 0.16, 1);
+                batPivot.rotation.set(
+                    THREE.MathUtils.lerp(0.35, 1.5, t),
+                    THREE.MathUtils.lerp(0, 2.7, t),
+                    THREE.MathUtils.lerp(-0.45, -1.35, t)
+                );
+                batterMesh.userData.torsoPivot.rotation.y = THREE.MathUtils.lerp(0, 1.15, t);
+            }
+
+            // Simulation State Machine
+            if (game.screen === 'PLAYING') {
+                if (game.phase === 'WINDUP') {
+                    game.timer += dt;
+                    const w = Math.min(game.timer / 0.85, 1);
+                    // Pitcher articulated leg kick & arm windup
+                    pitcherMesh.userData.leftLegPivot.rotation.x = Math.sin(w * Math.PI) * -0.95;
+                    pitcherMesh.userData.rightArmPivot.rotation.x = -w * Math.PI * 1.7;
+
+                    if (w >= 1) {
+                        game.phase = 'PITCHING';
+                        game.timer = 0;
+                        pitcherMesh.userData.leftLegPivot.rotation.x = 0;
+                        pitcherMesh.userData.rightArmPivot.rotation.x = 0.6;
+                    }
+                } else if (game.phase === 'PITCHING') {
+                    game.timer += dt;
+                    const pitch = game.currentPitch;
+                    const t = game.timer / pitch.duration;
+
+                    const pos = new THREE.Vector3().lerpVectors(PITCHER_POS, game.pitchTargetWorld, t);
+                    const curve = Math.pow(t, 2.2);
+                    pos.x += pitch.breakX * curve;
+                    pos.y += pitch.breakY * curve + Math.sin(t * Math.PI) * 0.24;
+
+                    ballMesh.position.copy(pos);
+                    updateTrail(pos, false, game.fireballActive ? 0xf97316 : pitch.hex);
+
+                    // Update Zone Pad Ball Indicator
+                    const dot = document.getElementById('zone-ball-dot');
+                    dot.classList.remove('hidden');
+                    const dotX = (pos.x / (szWidth * 0.5)) * 50 + 50;
+                    const dotY = ((szCenterY - pos.y) / (szHeight * 0.5)) * 50 + 50;
+                    dot.style.left = `${THREE.MathUtils.clamp(dotX, 0, 100)}%`;
+                    dot.style.top = `${THREE.MathUtils.clamp(dotY, 0, 100)}%`;
+
+                    // AI Batter Swing when player is pitching!
+                    if (game.mode === 'FULL_GAME' && game.isTopInning && !game.swingInitiated && t >= 0.92) {
+                        game.swingInitiated = true;
+                        const aiSwings = game.isStrikeZonePitch ? Math.random() < 0.72 : Math.random() < 0.24;
+                        if (aiSwings) {
+                            const aiHits = Math.random() < (0.34 + ((100 - game.stamina) / 100) * 0.28);
+                            if (aiHits) {
+                                launchBattedBall((Math.random() - 0.5) * 0.14, 0.08, 0.15, 0.5, 76);
+                            }
+                        }
+                    }
+
+                    if (t >= 1.08) {
+                        audio.playMittPop();
+                        if (game.swingInitiated) recordStrike(false);
+                        else if (game.isStrikeZonePitch) recordStrike(true);
+                        else recordBall();
+                    }
+                } else if (game.phase === 'HIT_FLIGHT' || game.phase === 'REPLAY') {
+                    game.ballVel.y -= 9.81 * dt;
+                    game.ballVel.multiplyScalar(1 - 0.13 * dt);
+                    ballMesh.position.addScaledVector(game.ballVel, dt);
+                    updateTrail(ballMesh.position, false, 0xfacc15);
+
+                    const dist = Math.hypot(ballMesh.position.x, ballMesh.position.z);
+                    const isFoul = Math.abs(ballMesh.position.x) > Math.abs(ballMesh.position.z) || ballMesh.position.z > 0.2;
+
+                    // Fielders sprint toward ball
+                    fielders.forEach(f => {
+                        const dir = new THREE.Vector3().subVectors(ballMesh.position, f.position);
+                        dir.y = 0;
+                        if (dir.length() > 0.6) {
+                            dir.normalize();
+                            f.position.addScaledVector(dir, 7.8 * dt);
+                            f.lookAt(ballMesh.position.x, 0, ballMesh.position.z);
+                        }
+                    });
+
+                    // HOME RUN CHECK (Over 112m wall in fair territory)
+                    if (game.phase === 'HIT_FLIGHT' && !isFoul && dist >= 112 && ballMesh.position.y > 3.1) {
+                        const realDistM = Math.max(115, Math.round(dist + ballMesh.position.y * 1.4));
+                        game.lastHitTelemetry.dist = realDistM;
+                        crowdWaveTimer = 4.5;
+                        audio.playHomeRunCelebration();
+                        audio.speak('It is gone! Home Run!');
+
+                        if (!game.isTopInning) {
+                            profile.stats.atBats++;
+                            profile.stats.hits++;
+                            profile.stats.hrs++;
+                            if (realDistM > profile.stats.maxHrDist) profile.stats.maxHrDist = realDistM;
+                            trackProgress('q_hr', 'ev_weekend', 1);
+                        }
+
+                        if (game.mode === 'DERBY') {
+                            game.derbyHrs++;
+                            game.derbyCombo++;
+                            if (game.derbyCombo >= 3) game.fireballActive = true;
+                            const pts = (realDistM * 3) * (game.fireballActive ? 2 : 1);
+                            game.derbyScore += pts;
+                            syncMatchHUD();
+                        } else {
+                            game.balls = 0;
+                            game.strikes = 0;
+                            game.batterIdx++;
+                            advanceAllRunners(4, true);
+                        }
+
+                        showCallout('全壘打 HOME RUN!!', `飛行距離 ${realDistM}m • 初速 ${game.lastHitTelemetry.velo} km/h`, 'text-yellow-300');
+
+                        // Trigger Slow-Motion Home Run Replay Cam!
+                        game.phase = 'REPLAY';
+                        game.replayTimer = 0;
+                        document.getElementById('rep-velo').textContent = `${game.lastHitTelemetry.velo} km/h`;
+                        document.getElementById('rep-angle').textContent = `${game.lastHitTelemetry.angle}°`;
+                        document.getElementById('rep-dist').textContent = `${realDistM} m`;
+                        document.getElementById('replay-overlay').classList.remove('hidden');
+                    }
+
+                    if (game.phase === 'REPLAY') {
+                        game.replayTimer += rawDt;
+                        if (game.replayTimer >= 3.2 || ballMesh.position.y <= 0.1) {
+                            skipReplay();
+                        }
+                    } else if (ballMesh.position.y <= 0.06) {
+                        ballMesh.position.y = 0.06;
+                        game.ballBounces++;
+
+                        if (game.ballBounces === 1 && isFoul) {
+                            if (game.mode === 'DERBY') {
+                                game.derbyCombo = 0;
+                                game.fireballActive = false;
+                                if (game.derbyRule === 'OUTS') game.derbyOutsLeft--;
+                                syncMatchHUD();
+                            } else if (game.strikes < 2) {
+                                game.strikes++;
+                            }
+                            showCallout('界外球 FOUL BALL', `球數 ${game.balls}-${game.strikes}`, 'text-amber-300');
+                            syncMatchHUD();
+                            transitionAfterPlay();
+                            return;
+                        }
+
+                        stateDampenBounce();
+
+                        let fielded = false;
+                        for (const f of fielders) {
+                            if (f.position.distanceTo(ballMesh.position) < 1.45) {
+                                fielded = true;
+                                break;
+                            }
+                        }
+
+                        if (fielded || game.ballVel.length() < 3.6) {
+                            if (game.mode === 'DERBY') {
+                                game.derbyCombo = 0;
+                                game.fireballActive = false;
+                                if (game.derbyRule === 'OUTS') game.derbyOutsLeft--;
+                                showCallout('未過全壘打牆 OUT', `距離 ${Math.round(dist)}m`, 'text-rose-400');
+                                syncMatchHUD();
+                                transitionAfterPlay();
+                                return;
+                            }
+
+                            game.balls = 0;
+                            game.strikes = 0;
+                            game.batterIdx++;
+                            if (!game.isTopInning) profile.stats.atBats++;
+
+                            if (dist < 42) {
+                                game.outs++;
+                                audio.speak('Out at first!');
+                                showCallout('內野滾地出局', '傳一壘刺殺', 'text-rose-400');
+                            } else if (game.ballBounces === 1 && fielded && dist > 38) {
+                                game.outs++;
+                                audio.speak('Fly out!');
+                                showCallout('高飛接殺出局', '外野手美技接殺', 'text-rose-400');
+                            } else {
+                                if (!game.isTopInning) profile.stats.hits++;
+                                const basesEarned = dist >= 86 ? 3 : dist >= 64 ? 2 : 1;
+                                const label = basesEarned === 3 ? '三壘安打 TRIPLE!' : basesEarned === 2 ? '二壘安打 DOUBLE!' : '一壘安打 SINGLE!';
+                                audio.speak(basesEarned === 1 ? 'Base hit!' : 'Extra base hit!');
+                                showCallout(label, `擊球初速 ${game.lastHitTelemetry.velo} km/h`, 'text-emerald-300');
+                                advanceAllRunners(basesEarned, true);
+                            }
+                            saveProfile();
+                            syncMatchHUD();
+                            transitionAfterPlay();
+                        }
+                    }
+                }
+            }
+
+            // Dynamic Camera Controller (Lobby Orbit vs Batting/Pitching vs Flight/Replay)
+            if (game.screen === 'LOBBY') {
+                const t = clock.elapsedTime * 0.14;
+                camPos.set(Math.sin(t) * 44, 19, Math.cos(t) * 44 - 16);
+                camLook.set(0, 2, -24);
+            } else if (game.phase === 'REPLAY') {
+                // Dramatic tracking behind flying HR ball
+                camPos.set(ballMesh.position.x * 0.72, ballMesh.position.y + 3.2, ballMesh.position.z + 9.5);
+                camLook.copy(ballMesh.position);
+            } else if (game.phase === 'HIT_FLIGHT' || game.phase === 'TRANSITION') {
+                camPos.set(ballMesh.position.x * 0.28, 13 + Math.max(0, ballMesh.position.y * 0.45), 14.5);
+                camLook.lerp(ballMesh.position, 5 * rawDt);
+            } else if (game.mode === 'FULL_GAME' && game.isTopInning) {
+                // Pitcher's Over-the-Shoulder View
+                camPos.set(0.45, 2.25, -22.2);
+                camLook.set(0, 0.95, 0);
+            } else {
+                // Batter's View behind Home Plate
+                if (game.cameraMode === 0) {
+                    camPos.set(0.28, 1.88, 3.7);
+                    camLook.set(0, 1.05, -14);
+                } else {
+                    camPos.set(0.15, 1.5, 2.4);
+                    camLook.set(0, 0.92, -16);
+                }
+            }
+
+            camera.position.lerp(camPos, 5.5 * rawDt);
+            camera.lookAt(camLook);
+            renderer.render(scene, camera);
+        }
+
+        function stateDampenBounce() {
+            game.ballVel.y = Math.abs(game.ballVel.y) * 0.42;
+            game.ballVel.x *= 0.68;
+            game.ballVel.z *= 0.68;
+        }
+
+        // =========================================================================
+        // 11. EVENT BINDINGS & KEYBOARD SHORTCUTS
+        // =========================================================================
+        document.getElementById('hud-swing-btn').addEventListener('pointerdown', (e) => {
+            e.preventDefault();
+            executePlayerSwing();
+        });
+
+        document.getElementById('hud-pitch-btn').addEventListener('pointerdown', (e) => {
+            e.preventDefault();
+            executePlayerPitch();
+        });
+
+        document.getElementById('hud-camera-btn').addEventListener('click', () => {
+            game.cameraMode = (game.cameraMode + 1) % 2;
+            showToast(game.cameraMode === 0 ? '🎥 轉播廣角視角' : '🎥 打擊區特寫視角');
+        });
+
+        document.getElementById('hud-exit-btn').addEventListener('click', returnToLobby);
+
+        document.getElementById('toggle-lighting-btn').addEventListener('click', () => {
+            isNightMode = !isNightMode;
+            applyLightingMode();
+            document.getElementById('lighting-icon').textContent = isNightMode ? '🌙' : '☀️';
+            document.getElementById('lighting-text').textContent = isNightMode ? '夜間燈光' : '日間球場';
+        });
+
+        document.getElementById('lobby-audio-btn').addEventListener('click', () => {
+            const muted = audio.toggleMute();
+            document.getElementById('lobby-audio-icon').textContent = muted ? '🔇' : '🔊';
+        });
+
+        // Keyboard Support (WASD/Arrows for PCI, Space for Swing/Pitch, E/Q/S for Baserunning)
+        window.addEventListener('keydown', (e) => {
+            if (game.screen !== 'PLAYING') return;
+            const step = 0.16;
+            const targetObj = (game.mode === 'FULL_GAME' && game.isTopInning) ? game.pitchAimNorm : game.pciNorm;
+            const cursorEl = (game.mode === 'FULL_GAME' && game.isTopInning) ? pitchTargetCursor : pciCursor;
+
+            if (e.code === 'ArrowLeft' || e.code === 'KeyA') targetObj.x = Math.max(-0.92, targetObj.x - step);
+            if (e.code === 'ArrowRight' || e.code === 'KeyD') targetObj.x = Math.min(0.92, targetObj.x + step);
+            if (e.code === 'ArrowUp' || e.code === 'KeyW') targetObj.y = Math.max(-0.92, targetObj.y - step);
+            if (e.code === 'ArrowDown' || e.code === 'KeyS') {
+                if (e.shiftKey) commandBaserunners('STEAL');
+                else targetObj.y = Math.min(0.92, targetObj.y + step);
+            }
+            cursorEl.style.left = `${(targetObj.x + 1) * 50}%`;
+            cursorEl.style.top = `${(targetObj.y + 1) * 50}%`;
+
+            if (e.code === 'Space') {
+                e.preventDefault();
+                if (game.mode === 'FULL_GAME' && game.isTopInning) executePlayerPitch();
+                else executePlayerSwing();
+            }
+            if (e.code === 'KeyE') commandBaserunners('ADVANCE');
+            if (e.code === 'KeyQ') commandBaserunners('RETREAT');
+        });
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        window.onload = () => {
+            setJerseyColor(profile.jerseyColor);
+            updateLobbyUI();
+            animate();
+        };
+    </script>
+</body>
+</html>
